@@ -40,4 +40,4 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: venda-sem-estoque
           directory: .vercel/output/static
-          gitToCommitMetadata: true
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
