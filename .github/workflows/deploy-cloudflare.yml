@@ -27,9 +27,11 @@ jobs:
 
       - name: Generate Prisma Client & Build Next.js
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'file:./dev.db' }}
         run: |
           npx prisma generate
+          npx prisma db push
+          npx tsx prisma/seed.ts
           npm run build
           npx @cloudflare/next-on-pages
 
