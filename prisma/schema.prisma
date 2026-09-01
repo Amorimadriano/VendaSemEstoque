@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+  PENDING_REVIEW
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  CANCELLED
+  PAID
+}
+
+model User {
+  id            String      @id @default(uuid())
+  name          String?
+  email         String      @unique
+  passwordHash  String?
+  image         String?
+  role          Role        @default(USER)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  favorites     Favorite[]
+  clicks        Click[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model AdminUser {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(ADMIN)
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  auditLogs    AuditLog[]
+
+  @@map("admin_users")
+}
+
+model Category {
+  id          String     @id @default(uuid())
+  name        String
+  slug        String     @unique
+  description String?
+  icon        String?
+  parentId    String?    @map("parent_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  parent      Category?  @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[] @relation("CategoryToCategory")
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Supplier {
+  id          String    @id @default(uuid())
+  name        String
+  website     String?
+  contact     String?
+  notes       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  products    Product[]
+
+  @@map("suppliers")
+}
+
+model Marketplace {
+  id              String             @id @default(uuid())
+  name            String
+  slug            String             @unique
+  logoUrl         String?            @map("logo_url")
+  apiStatus       String             @default("ACTIVE") @map("api_status")
+  affiliateStatus String             @default("ACTIVE") @map("affiliate_status")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  products        Product[]
+  affiliateLinks  AffiliateLink[]
+  conversions     Conversion[]
+  affiliatePrograms AffiliateProgram[]
+
+  @@map("marketplaces")
+}
+
+model AffiliateProgram {
+  id              String      @id @default(uuid())
+  marketplaceId   String      @map("marketplace_id")
+  name            String
+  commissionRate  Float       @map("commission_rate")
+  cookieDuration  Int         @default(30) @map("cookie_duration") // dias
+  termsUrl        String?     @map("terms_url")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  marketplace     Marketplace @relation(fields: [marketplaceId], references: [id], onDelete: Cascade)
+
+  @@map("affiliate_programs")
+}
+
+model Product {
+  id                   String        @id @default(uuid())
+  name                 String
+  slug                 String        @unique
+  description          String
+  categoryId           String        @map("category_id")
+  supplierId           String?       @map("supplier_id")
+  marketplaceId        String        @map("marketplace_id")
+  brand                String?
+  imageUrl             String        @map("image_url")
+  images               String        @default("[]") // JSON String array
+  videoUrl             String?       @map("video_url")
+  price                Float
+  oldPrice             Float?        @map("old_price")
+  discountPercentage   Float?        @map("discount_percentage")
+  rating               Float         @default(0)
+  reviewCount          Int           @default(0) @map("review_count")
+  popularityScore      Float         @default(0) @map("popularity_score")
+  trendScore           Float         @default(0) @map("trend_score")
+  commissionPercentage Float         @map("commission_percentage")
+  commissionValue      Float         @map("commission_value")
+  externalProductId    String        @map("external_product_id")
+  originalUrl          String        @map("original_url")
+  affiliateUrl         String        @map("affiliate_url")
+  isBestSeller         Boolean       @default(false) @map("is_best_seller")
+  isTrending           Boolean       @default(false) @map("is_trending")
+  status               ProductStatus @default(ACTIVE)
+  lastSyncedAt         DateTime      @default(now()) @map("last_synced_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  category             Category      @relation(fields: [categoryId], references: [id])
+  supplier             Supplier?     @relation(fields: [supplierId], references: [id])
+  marketplace          Marketplace   @relation(fields: [marketplaceId], references: [id])
+  
+  affiliateLinks       AffiliateLink[]
+  clicks               Click[]
+  conversions          Conversion[]
+  favorites            Favorite[]
+  metrics              ProductMetric?
+  priceHistories       PriceHistory[]
+
+  @@map("products")
+}
+
+model AffiliateLink {
+  id            String      @id @default(uuid())
+  productId     String      @map("product_id")
+  marketplaceId String      @map("marketplace_id")
+  url           String
+  trackingId    String      @map("tracking_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  marketplace   Marketplace @relation(fields: [marketplaceId], references: [id], onDelete: Cascade)
+  clicks        Click[]
+
+  @@map("affiliate_links")
+}
+
+model Click {
+  id              String         @id @default(uuid())
+  productId       String         @map("product_id")
+  affiliateLinkId String?        @map("affiliate_link_id")
+  sessionId       String?        @map("session_id")
+  userId          String?        @map("user_id")
+  utmSource       String?        @map("utm_source")
+  utmMedium       String?        @map("utm_medium")
+  utmCampaign     String?        @map("utm_campaign")
+  device          String?
+  ipHash          String?        @map("ip_hash")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  product         Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  affiliateLink   AffiliateLink? @relation(fields: [affiliateLinkId], references: [id])
+  user            User?          @relation(fields: [userId], references: [id])
+  conversions     Conversion[]
+
+  @@map("clicks")
+}
+
+model Conversion {
+  id               String       @id @default(uuid())
+  clickId          String?      @map("click_id")
+  productId        String       @map("product_id")
+  marketplaceId    String       @map("marketplace_id")
+  orderExternalId  String?      @map("order_external_id")
+  saleValue        Float        @map("sale_value")
+  commissionValue  Float        @map("commission_value")
+  status           CommissionStatus @default(PENDING)
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  click            Click?       @relation(fields: [clickId], references: [id])
+  product          Product      @relation(fields: [productId], references: [id])
+  marketplace      Marketplace  @relation(fields: [marketplaceId], references: [id])
+  commission       Commission?
+
+  @@map("conversions")
+}
+
+model Commission {
+  id              String           @id @default(uuid())
+  conversionId    String           @unique @map("conversion_id")
+  amount          Float
+  status          CommissionStatus @default(PENDING)
+  payoutDate      DateTime?        @map("payout_date")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  conversion      Conversion       @relation(fields: [conversionId], references: [id], onDelete: Cascade)
+
+  @@map("commissions")
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  productId String   @map("product_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("favorites")
+}
+
+model ProductMetric {
+  id              String   @id @default(uuid())
+  productId       String   @unique @map("product_id")
+  totalClicks     Int      @default(0) @map("total_clicks")
+  totalConversions Int     @default(0) @map("total_conversions")
+  conversionRate  Float    @default(0) @map("conversion_rate")
+  ctr             Float    @default(0)
+  totalCommission Float    @default(0) @map("total_commission")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_metrics")
+}
+
+model PriceHistory {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  price     Float
+  oldPrice  Float?   @map("old_price")
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("price_history")
+}
+
+model AuditLog {
+  id          String     @id @default(uuid())
+  adminUserId String?    @map("admin_user_id")
+  userId      String?    @map("user_id")
+  action      String
+  entity      String
+  entityId    String?    @map("entity_id")
+  details     String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id])
+  user        User?      @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
