@@ -1,5 +1,4 @@
 name = "venda-sem-estoque"
-account_id = "3b3ccb052987c53f085930fd82363604"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
