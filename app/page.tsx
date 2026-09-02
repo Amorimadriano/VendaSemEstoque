@@ -1,7 +1,6 @@
 import Hero from '@/components/Hero';
 import ProductCard from '@/components/ProductCard';
-import { getProducts } from '@/services/productService';
-import prisma from '@/lib/prisma';
+import { getProducts, getCategories } from '@/services/productService';
 import Link from 'next/link';
 import { Flame, Trophy, Percent, ArrowRight, Grid, ShieldAlert } from 'lucide-react';
 
@@ -13,7 +12,7 @@ export default async function HomePage() {
     getProducts({ isTrending: true, limit: 4 }),
     getProducts({ isBestSeller: true, limit: 4 }),
     getProducts({ sortBy: 'discount', limit: 4 }),
-    prisma.category.findMany({ take: 6, include: { _count: { select: { products: true } } } }),
+    getCategories(),
   ]);
 
   return (

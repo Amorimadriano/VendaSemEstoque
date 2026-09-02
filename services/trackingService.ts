@@ -1,52 +1,63 @@
 import prisma from '@/lib/prisma';
 import { AffiliateClickData } from '@/types';
+import { getMockProductBySlug } from './mockData';
 
 export async function registerClickAndGetAffiliateUrl(data: AffiliateClickData): Promise<string> {
-  const product = await prisma.product.findUnique({
-    where: { id: data.productId },
-    include: {
-      marketplace: true,
-      affiliateLinks: true,
-    },
-  });
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id: data.productId },
+      include: {
+        marketplace: true,
+        affiliateLinks: true,
+      },
+    });
 
-  if (!product) {
-    throw new Error('Produto não encontrado');
+    if (!product) {
+      const mockResult = getMockProductBySlug(data.productId);
+      if (mockResult?.product?.affiliateUrl) {
+        return mockResult.product.affiliateUrl;
+      }
+      throw new Error('Produto não encontrado');
+    }
+
+    const click = await prisma.click.create({
+      data: {
+        productId: data.productId,
+        affiliateLinkId: data.affiliateLinkId || product.affiliateLinks[0]?.id,
+        sessionId: data.sessionId || `sess_${Math.random().toString(36).substring(2, 11)}`,
+        userId: data.userId,
+        utmSource: data.utmSource,
+        utmMedium: data.utmMedium,
+        utmCampaign: data.utmCampaign,
+        device: data.device || 'desktop',
+        ipHash: data.ipHash,
+      },
+    });
+
+    await prisma.productMetric.upsert({
+      where: { productId: data.productId },
+      update: {
+        totalClicks: { increment: 1 },
+      },
+      create: {
+        productId: data.productId,
+        totalClicks: 1,
+        totalConversions: 0,
+      },
+    });
+
+    const affiliateUrl = new URL(product.affiliateUrl);
+    affiliateUrl.searchParams.set('subid_click', click.id);
+
+    return affiliateUrl.toString();
+  } catch (error) {
+    console.warn('Prisma tracking failed, returning fallback affiliate link:', error);
+    const mockResult = getMockProductBySlug(data.productId);
+    if (mockResult?.product?.affiliateUrl) {
+      return mockResult.product.affiliateUrl;
+    }
+    return 'https://amazon.com.br';
   }
-
-  // Registrar clique no banco de dados
-  const click = await prisma.click.create({
-    data: {
-      productId: data.productId,
-      affiliateLinkId: data.affiliateLinkId || product.affiliateLinks[0]?.id,
-      sessionId: data.sessionId || `sess_${Math.random().toString(36).substring(2, 11)}`,
-      userId: data.userId,
-      utmSource: data.utmSource,
-      utmMedium: data.utmMedium,
-      utmCampaign: data.utmCampaign,
-      device: data.device || 'desktop',
-      ipHash: data.ipHash,
-    },
-  });
-
-  // Incrementar contador de cliques nas métricas do produto
-  await prisma.productMetric.upsert({
-    where: { productId: data.productId },
-    update: {
-      totalClicks: { increment: 1 },
-    },
-    create: {
-      productId: data.productId,
-      totalClicks: 1,
-      totalConversions: 0,
-    },
-  });
-
-  // Montar link final com o identificador único do clique (para atribuição futura de conversão)
-  const affiliateUrl = new URL(product.affiliateUrl);
-  affiliateUrl.searchParams.set('subid_click', click.id);
-
-  return affiliateUrl.toString();
 }
 
 export async function registerConversion(

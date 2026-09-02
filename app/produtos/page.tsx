@@ -1,7 +1,6 @@
 import CategoryFilter from '@/components/CategoryFilter';
 import ProductCard from '@/components/ProductCard';
-import { getProducts } from '@/services/productService';
-import prisma from '@/lib/prisma';
+import { getProducts, getCategories, getMarketplaces } from '@/services/productService';
 import Link from 'next/link';
 import { Search } from 'lucide-react';
 
@@ -35,8 +34,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       page,
       limit: 12,
     }),
-    prisma.category.findMany({ include: { _count: { select: { products: true } } } }),
-    prisma.marketplace.findMany(),
+    getCategories(),
+    getMarketplaces(),
   ]);
 
   return (
