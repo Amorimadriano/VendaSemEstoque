@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import { Flame, Trophy, Percent, ArrowRight, Grid, ShieldAlert } from 'lucide-react';
 
+export const runtime = 'edge';
 export const revalidate = 60; // ISR Revalidation
 
 export default async function HomePage() {

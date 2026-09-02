@@ -5,6 +5,8 @@ import { notFound } from 'next/navigation';
 import { Star, ShieldCheck, ExternalLink, Info, CheckCircle2, TrendingUp, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
+export const runtime = 'edge';
+
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
 }

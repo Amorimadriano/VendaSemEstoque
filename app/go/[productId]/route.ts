@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { registerClickAndGetAffiliateUrl } from '@/services/trackingService';
 
+export const runtime = 'edge';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ productId: string }> }

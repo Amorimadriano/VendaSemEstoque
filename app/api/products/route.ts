@@ -3,6 +3,8 @@ import { getProducts } from '@/services/productService';
 import prisma from '@/lib/prisma';
 import { ProductStatus } from '@prisma/client';
 
+export const runtime = 'edge';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

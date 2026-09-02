@@ -2,6 +2,7 @@ import ProductCard from '@/components/ProductCard';
 import { getProducts } from '@/services/productService';
 import { Percent } from 'lucide-react';
 
+export const runtime = 'edge';
 export const revalidate = 60;
 
 export default async function OffersPage() {

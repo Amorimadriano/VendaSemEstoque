@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import { Search } from 'lucide-react';
 
+export const runtime = 'edge';
+
 interface ProductsPageProps {
   searchParams: Promise<{
     category?: string;
