@@ -86,9 +86,13 @@ export async function runProductDiscovery() {
   const discovered = new Map<string, ExternalProduct>();
 
   for (const search of SEARCHES) {
-    const products = await integration.getProducts(search, undefined, 20);
-    for (const product of products) {
-      if (isWorthPublishing(product)) discovered.set(product.externalProductId, product);
+    try {
+      const products = await integration.getProducts(search, undefined, 20);
+      for (const product of products) {
+        if (isWorthPublishing(product)) discovered.set(product.externalProductId, product);
+      }
+    } catch (error) {
+      console.warn(`Search failed for "${search}":`, error);
     }
   }
 

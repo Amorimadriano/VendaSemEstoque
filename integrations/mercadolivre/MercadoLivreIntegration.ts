@@ -13,8 +13,25 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     search.searchParams.set('limit', String(Math.min(limit, 50)));
     search.searchParams.set('sort', 'relevance');
 
-    const response = await fetch(search, { headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`Mercado Livre API returned ${response.status}`);
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': 'VendaSemEstoque/1.0',
+    };
+    if (process.env.MERCADOLIVRE_ACCESS_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.MERCADOLIVRE_ACCESS_TOKEN}`;
+    }
+
+    let response: Response | undefined;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      response = await fetch(search, { headers });
+      if (response.ok) break;
+      if (![429, 500, 502, 503, 504].includes(response.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
+    if (!response?.ok) {
+      const detail = response ? await response.text().catch(() => '') : '';
+      throw new Error(`Mercado Livre API returned ${response?.status || 'unknown'}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+    }
 
     const data = await response.json() as {
       results?: Array<{
@@ -33,7 +50,6 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     };
 
     return (data.results || []).map((item) => {
-      const soldQuantity = item.sold_quantity || 0;
       const imageUrl = item.thumbnail?.replace('-I.jpg', '-O.jpg') || item.pictures?.[0]?.url || '';
       const oldPrice = item.original_price && item.original_price > item.price ? item.original_price : undefined;
       const discountPercentage = oldPrice ? Math.round(((oldPrice - item.price) / oldPrice) * 100) : undefined;
