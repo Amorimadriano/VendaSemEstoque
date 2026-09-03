@@ -1,4 +1,4 @@
-import { ExternalProduct } from '@/types';
+import { ExternalProduct } from '../types';
 
 export interface MarketplaceIntegration {
   marketplaceSlug: string;

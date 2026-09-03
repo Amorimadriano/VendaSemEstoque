@@ -1,5 +1,5 @@
 import { MarketplaceIntegration } from '../MarketplaceIntegration';
-import { ExternalProduct } from '@/types';
+import { ExternalProduct } from '../../types';
 
 export class MockMarketplace implements MarketplaceIntegration {
   marketplaceSlug: string;

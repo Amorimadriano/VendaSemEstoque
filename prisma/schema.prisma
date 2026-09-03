@@ -182,6 +182,7 @@ model Product {
 
   @@map("products")
   @@schema("public")
+  @@unique([externalProductId])
 }
 
 model AffiliateLink {

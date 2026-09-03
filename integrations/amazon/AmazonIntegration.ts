@@ -1,6 +1,6 @@
 import { MarketplaceIntegration } from '../MarketplaceIntegration';
 import { MockMarketplace } from '../mock/MockMarketplace';
-import { ExternalProduct } from '@/types';
+import { ExternalProduct } from '../../types';
 
 export class AmazonIntegration implements MarketplaceIntegration {
   marketplaceSlug = 'amazon';

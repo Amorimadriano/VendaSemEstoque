@@ -11,7 +11,8 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:seed": "node --import tsx/esm prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "products:discover": "tsx services/productDiscovery.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",

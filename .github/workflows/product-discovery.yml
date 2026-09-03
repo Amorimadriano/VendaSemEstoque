@@ -1,0 +1,31 @@
+name: Discover Mercado Livre Products
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Discover and sync products
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
+          MERCADOLIVRE_TOOL_ID: ${{ secrets.MERCADOLIVRE_TOOL_ID }}
+          MERCADOLIVRE_COMMISSION_PERCENTAGE: ${{ vars.MERCADOLIVRE_COMMISSION_PERCENTAGE || '10' }}
+          PRODUCT_SEARCHES: ${{ vars.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa' }}
+        run: npm run products:discover
