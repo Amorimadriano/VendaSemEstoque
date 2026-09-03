@@ -34,6 +34,24 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     return this.accessToken;
   }
 
+  private async refreshAccessToken() {
+    if (!process.env.MERCADOLIVRE_REFRESH_TOKEN || !process.env.MERCADOLIVRE_CLIENT_ID || !process.env.MERCADOLIVRE_CLIENT_SECRET) return undefined;
+    const response = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: process.env.MERCADOLIVRE_CLIENT_ID,
+        client_secret: process.env.MERCADOLIVRE_CLIENT_SECRET,
+        refresh_token: process.env.MERCADOLIVRE_REFRESH_TOKEN,
+      }),
+    });
+    if (!response.ok) return undefined;
+    const data = await response.json() as { access_token?: string };
+    this.accessToken = data.access_token;
+    return this.accessToken;
+  }
+
   async getProducts(query?: string, category?: string, limit = 10): Promise<ExternalProduct[]> {
     const search = new URL('https://api.mercadolibre.com/sites/MLB/search');
     search.searchParams.set('q', query || 'ofertas');
@@ -44,7 +62,7 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
       Accept: 'application/json',
       'User-Agent': 'VendaSemEstoque/1.0',
     };
-    const accessToken = await this.getAccessToken();
+    let accessToken = await this.getAccessToken();
     if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`;
     }
@@ -52,6 +70,13 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     let response: Response | undefined;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       response = await fetch(search, { headers });
+      if ((response.status === 401 || response.status === 403) && process.env.MERCADOLIVRE_REFRESH_TOKEN) {
+        accessToken = await this.refreshAccessToken();
+        if (accessToken) {
+          headers.Authorization = `Bearer ${accessToken}`;
+          response = await fetch(search, { headers });
+        }
+      }
       if (response.ok) break;
       if (![429, 500, 502, 503, 504].includes(response.status)) break;
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));

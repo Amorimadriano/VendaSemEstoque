@@ -23,8 +23,10 @@ jobs:
 
       - name: Discover and sync products
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.SUPABASE_POOLER_DATABASE_URL || secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.SUPABASE_DIRECT_DATABASE_URL || secrets.DIRECT_URL }}
+          MERCADOLIVRE_CLIENT_ID: ${{ secrets.MERCADOLIVRE_CLIENT_ID }}
+          MERCADOLIVRE_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
           MERCADOLIVRE_TOOL_ID: ${{ secrets.MERCADOLIVRE_TOOL_ID }}
           MERCADOLIVRE_ACCESS_TOKEN: ${{ secrets.MERCADOLIVRE_ACCESS_TOKEN }}
           MERCADOLIVRE_REFRESH_TOKEN: ${{ secrets.MERCADOLIVRE_REFRESH_TOKEN }}

@@ -140,6 +140,10 @@ export async function runProductDiscovery() {
     published += 1;
   }
 
+  if (discovered.size === 0) {
+    throw new Error('Nenhum produto foi encontrado. Verifique MERCADOLIVRE_ACCESS_TOKEN/MERCADOLIVRE_REFRESH_TOKEN e os limites da API do Mercado Livre.');
+  }
+
   const marketplace = await prisma.marketplace.findUnique({ where: { slug: 'mercadolivre' } });
   if (marketplace) {
     const existing = await prisma.product.findMany({
@@ -154,10 +158,6 @@ export async function runProductDiscovery() {
         }
       }
     }
-  }
-
-  if (discovered.size === 0) {
-    throw new Error('Nenhum produto foi encontrado. Verifique MERCADOLIVRE_ACCESS_TOKEN e os limites da API do Mercado Livre.');
   }
 
   return { searched: SEARCHES.length, discovered: discovered.size, published, rankingUpdated: published };
