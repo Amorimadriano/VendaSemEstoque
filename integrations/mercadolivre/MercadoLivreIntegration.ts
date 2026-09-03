@@ -6,6 +6,33 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
   marketplaceSlug = 'mercadolivre';
   marketplaceName = 'Mercado Livre';
   private mockFallback = new MockMarketplace('mercadolivre', 'Mercado Livre');
+  private accessToken?: string;
+
+  private async getAccessToken() {
+    if (this.accessToken) return this.accessToken;
+    if (process.env.MERCADOLIVRE_ACCESS_TOKEN) {
+      this.accessToken = process.env.MERCADOLIVRE_ACCESS_TOKEN;
+      return this.accessToken;
+    }
+    if (!process.env.MERCADOLIVRE_REFRESH_TOKEN || !process.env.MERCADOLIVRE_CLIENT_ID || !process.env.MERCADOLIVRE_CLIENT_SECRET) {
+      return undefined;
+    }
+
+    const response = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: process.env.MERCADOLIVRE_CLIENT_ID,
+        client_secret: process.env.MERCADOLIVRE_CLIENT_SECRET,
+        refresh_token: process.env.MERCADOLIVRE_REFRESH_TOKEN,
+      }),
+    });
+    if (!response.ok) return undefined;
+    const data = await response.json() as { access_token?: string };
+    this.accessToken = data.access_token;
+    return this.accessToken;
+  }
 
   async getProducts(query?: string, category?: string, limit = 10): Promise<ExternalProduct[]> {
     const search = new URL('https://api.mercadolibre.com/sites/MLB/search');
@@ -17,8 +44,9 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
       Accept: 'application/json',
       'User-Agent': 'VendaSemEstoque/1.0',
     };
-    if (process.env.MERCADOLIVRE_ACCESS_TOKEN) {
-      headers.Authorization = `Bearer ${process.env.MERCADOLIVRE_ACCESS_TOKEN}`;
+    const accessToken = await this.getAccessToken();
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
     }
 
     let response: Response | undefined;
