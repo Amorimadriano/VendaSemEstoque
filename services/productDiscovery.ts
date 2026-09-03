@@ -120,6 +120,10 @@ async function upsertProduct(product: ExternalProduct) {
 }
 
 export async function runProductDiscovery() {
+  if (!process.env.MERCADOLIVRE_ACCESS_TOKEN && !process.env.MERCADOLIVRE_REFRESH_TOKEN) {
+    throw new Error('Mercado Livre OAuth não configurado: cadastre MERCADOLIVRE_ACCESS_TOKEN ou MERCADOLIVRE_REFRESH_TOKEN nos GitHub Actions Secrets.');
+  }
+
   const integration = getMarketplaceIntegration('mercadolivre');
   const discovered = new Map<string, ExternalProduct>();
 

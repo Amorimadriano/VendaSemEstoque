@@ -34,4 +34,6 @@ jobs:
           PRODUCT_SEARCHES: ${{ vars.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa' }}
           PRODUCT_MIN_PRICE: ${{ vars.PRODUCT_MIN_PRICE || '30' }}
           PRODUCT_MAX_PRICE: ${{ vars.PRODUCT_MAX_PRICE || '5000' }}
-        run: npm run products:discover
+        run: |
+          test -n "$MERCADOLIVRE_ACCESS_TOKEN" || test -n "$MERCADOLIVRE_REFRESH_TOKEN" || (echo "Missing Mercado Livre OAuth secret" && exit 1)
+          npm run products:discover

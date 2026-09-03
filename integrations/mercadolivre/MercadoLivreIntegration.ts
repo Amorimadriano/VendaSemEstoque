@@ -83,6 +83,9 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     }
     if (!response?.ok) {
       const detail = response ? await response.text().catch(() => '') : '';
+      if (response?.status === 401 || response?.status === 403) {
+        throw new Error('Mercado Livre recusou a autorização (403). Gere um novo OAuth access/refresh token e confirme que ele pertence ao mesmo CLIENT_ID da aplicação.');
+      }
       throw new Error(`Mercado Livre API returned ${response?.status || 'unknown'}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
     }
 
