@@ -1,17 +1,21 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  schemas    = ["public"]
 }
 
 enum Role {
   USER
   ADMIN
   SUPERADMIN
+
+  @@schema("public")
 }
 
 enum ProductStatus {
@@ -19,6 +23,8 @@ enum ProductStatus {
   INACTIVE
   OUT_OF_STOCK
   PENDING_REVIEW
+
+  @@schema("public")
 }
 
 enum CommissionStatus {
@@ -26,6 +32,8 @@ enum CommissionStatus {
   APPROVED
   CANCELLED
   PAID
+
+  @@schema("public")
 }
 
 model User {
@@ -43,6 +51,7 @@ model User {
   auditLogs     AuditLog[]
 
   @@map("users")
+  @@schema("public")
 }
 
 model AdminUser {
@@ -58,6 +67,7 @@ model AdminUser {
   auditLogs    AuditLog[]
 
   @@map("admin_users")
+  @@schema("public")
 }
 
 model Category {
@@ -75,6 +85,7 @@ model Category {
   products    Product[]
 
   @@map("categories")
+  @@schema("public")
 }
 
 model Supplier {
@@ -89,6 +100,7 @@ model Supplier {
   products    Product[]
 
   @@map("suppliers")
+  @@schema("public")
 }
 
 model Marketplace {
@@ -107,6 +119,7 @@ model Marketplace {
   affiliatePrograms AffiliateProgram[]
 
   @@map("marketplaces")
+  @@schema("public")
 }
 
 model AffiliateProgram {
@@ -122,6 +135,7 @@ model AffiliateProgram {
   marketplace     Marketplace @relation(fields: [marketplaceId], references: [id], onDelete: Cascade)
 
   @@map("affiliate_programs")
+  @@schema("public")
 }
 
 model Product {
@@ -167,6 +181,7 @@ model Product {
   priceHistories       PriceHistory[]
 
   @@map("products")
+  @@schema("public")
 }
 
 model AffiliateLink {
@@ -182,6 +197,7 @@ model AffiliateLink {
   clicks        Click[]
 
   @@map("affiliate_links")
+  @@schema("public")
 }
 
 model Click {
@@ -203,6 +219,7 @@ model Click {
   conversions     Conversion[]
 
   @@map("clicks")
+  @@schema("public")
 }
 
 model Conversion {
@@ -222,6 +239,7 @@ model Conversion {
   commission       Commission?
 
   @@map("conversions")
+  @@schema("public")
 }
 
 model Commission {
@@ -236,6 +254,7 @@ model Commission {
   conversion      Conversion       @relation(fields: [conversionId], references: [id], onDelete: Cascade)
 
   @@map("commissions")
+  @@schema("public")
 }
 
 model Favorite {
@@ -249,6 +268,7 @@ model Favorite {
 
   @@unique([userId, productId])
   @@map("favorites")
+  @@schema("public")
 }
 
 model ProductMetric {
@@ -264,6 +284,7 @@ model ProductMetric {
   product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_metrics")
+  @@schema("public")
 }
 
 model PriceHistory {
@@ -276,6 +297,7 @@ model PriceHistory {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("price_history")
+  @@schema("public")
 }
 
 model AuditLog {
@@ -292,4 +314,5 @@ model AuditLog {
   user        User?      @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
+  @@schema("public")
 }
