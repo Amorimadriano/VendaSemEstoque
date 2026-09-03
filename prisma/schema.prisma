@@ -155,6 +155,7 @@ model Product {
   discountPercentage   Float?        @map("discount_percentage")
   rating               Float         @default(0)
   reviewCount          Int           @default(0) @map("review_count")
+  salesCount           Int           @default(0) @map("sales_count")
   popularityScore      Float         @default(0) @map("popularity_score")
   trendScore           Float         @default(0) @map("trend_score")
   commissionPercentage Float         @map("commission_percentage")

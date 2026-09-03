@@ -6,13 +6,32 @@ const SEARCHES = (process.env.PRODUCT_SEARCHES || 'eletronicos,celular,fones,not
 const MIN_RATING = Number(process.env.PRODUCT_MIN_RATING || 4);
 const MIN_REVIEWS = Number(process.env.PRODUCT_MIN_REVIEWS || 20);
 const DEFAULT_COMMISSION = Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10);
+const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 30);
+const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 5000);
 
 function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 }
 
 function isWorthPublishing(product: ExternalProduct) {
-  return product.isAvailable && product.price > 0;
+  return product.isAvailable && product.price >= MIN_PRICE && product.price <= MAX_PRICE;
+}
+
+function optimizeTitle(product: ExternalProduct) {
+  const title = product.name.replace(/\s+/g, ' ').trim();
+  return title.length <= 120 ? title : `${title.slice(0, 117).trim()}...`;
+}
+
+function optimizeDescription(product: ExternalProduct) {
+  const description = product.description.replace(/\s+/g, ' ').trim();
+  return description.length >= 80 ? description : `${description || product.name}. Confira preço, disponibilidade e condições diretamente no Mercado Livre.`;
+}
+
+function calculateRanking(product: ExternalProduct, commissionPercentage: number) {
+  const sales = Math.min(product.salesCount || 0, 10000) / 100;
+  const discount = Math.min(product.discountPercentage || 0, 70);
+  const margin = Math.min(commissionPercentage, 30) * 2;
+  return Math.round((sales * 0.55 + discount * 0.25 + margin * 0.2) * 100) / 100;
 }
 
 async function upsertProduct(product: ExternalProduct) {
@@ -32,12 +51,15 @@ async function upsertProduct(product: ExternalProduct) {
   const affiliateUrl = await getMarketplaceIntegration('mercadolivre').createAffiliateLink(product.originalUrl, product.externalProductId);
   const slug = `${toSlug(product.name)}-${product.externalProductId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.slice(0, 190);
   const commissionPercentage = product.commissionPercentage || DEFAULT_COMMISSION;
+  const ranking = calculateRanking(product, commissionPercentage);
+  const optimizedTitle = optimizeTitle(product);
+  const optimizedDescription = optimizeDescription(product);
 
-  return prisma.product.upsert({
+  const savedProduct = await prisma.product.upsert({
     where: { externalProductId: product.externalProductId },
     update: {
-      name: product.name,
-      description: product.description || product.name,
+      name: optimizedTitle,
+      description: optimizedDescription,
       imageUrl: product.imageUrl,
       images: JSON.stringify(product.images?.length ? product.images : [product.imageUrl]),
       price: product.price,
@@ -45,17 +67,22 @@ async function upsertProduct(product: ExternalProduct) {
       discountPercentage: product.discountPercentage,
       rating: product.rating,
       reviewCount: product.reviewCount,
+      salesCount: product.salesCount || 0,
+      popularityScore: ranking,
+      trendScore: product.salesCount && product.salesCount > 100 ? ranking : 0,
       commissionPercentage,
       commissionValue: product.price * commissionPercentage / 100,
       originalUrl: product.originalUrl,
       affiliateUrl,
       lastSyncedAt: new Date(),
+      isBestSeller: (product.salesCount || 0) >= 1000,
+      isTrending: ranking >= 35,
       status: 'ACTIVE',
     },
     create: {
-      name: product.name,
+      name: optimizedTitle,
       slug,
-      description: product.description || product.name,
+      description: optimizedDescription,
       categoryId: category.id,
       marketplaceId: marketplace.id,
       brand: product.brand,
@@ -66,19 +93,30 @@ async function upsertProduct(product: ExternalProduct) {
       discountPercentage: product.discountPercentage,
       rating: product.rating,
       reviewCount: product.reviewCount,
-      popularityScore: product.reviewCount,
-      trendScore: product.rating * 20,
+      salesCount: product.salesCount || 0,
+      popularityScore: ranking,
+      trendScore: product.salesCount && product.salesCount > 100 ? ranking : 0,
       commissionPercentage,
       commissionValue: product.price * commissionPercentage / 100,
       externalProductId: product.externalProductId,
       originalUrl: product.originalUrl,
       affiliateUrl,
-      isBestSeller: product.reviewCount >= 1000,
-      isTrending: product.rating >= 4.7,
+      isBestSeller: (product.salesCount || 0) >= 1000,
+      isTrending: ranking >= 35,
       status: 'ACTIVE',
       metrics: { create: {} },
     },
   });
+
+  await prisma.priceHistory.create({
+    data: {
+      productId: savedProduct.id,
+      price: product.price,
+      oldPrice: product.oldPrice,
+    },
+  });
+
+  return savedProduct;
 }
 
 export async function runProductDiscovery() {
@@ -102,7 +140,23 @@ export async function runProductDiscovery() {
     published += 1;
   }
 
-  return { searched: SEARCHES.length, discovered: discovered.size, published };
+  const marketplace = await prisma.marketplace.findUnique({ where: { slug: 'mercadolivre' } });
+  if (marketplace) {
+    const existing = await prisma.product.findMany({
+      where: { marketplaceId: marketplace.id, status: 'ACTIVE' },
+      select: { id: true, externalProductId: true },
+    });
+    for (const product of existing) {
+      if (!discovered.has(product.externalProductId)) {
+        const available = await integration.getAvailability(product.externalProductId);
+        if (!available) {
+          await prisma.product.update({ where: { id: product.id }, data: { status: 'OUT_OF_STOCK', lastSyncedAt: new Date() } });
+        }
+      }
+    }
+  }
+
+  return { searched: SEARCHES.length, discovered: discovered.size, published, rankingUpdated: published };
 }
 
 if (require.main === module) {

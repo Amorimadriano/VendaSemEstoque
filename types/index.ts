@@ -12,6 +12,7 @@ export interface ExternalProduct {
   discountPercentage?: number;
   rating: number;
   reviewCount: number;
+  salesCount?: number;
   commissionPercentage: number;
   commissionValue: number;
   originalUrl: string;

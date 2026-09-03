@@ -68,6 +68,7 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
         discountPercentage,
         rating: 0,
         reviewCount: 0,
+          salesCount: item.sold_quantity || 0,
         commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
         commissionValue: 0,
         originalUrl: item.permalink,
@@ -78,7 +79,43 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
   }
 
   async getProduct(externalId: string): Promise<ExternalProduct | null> {
-    return this.mockFallback.getProduct(externalId);
+    const response = await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(externalId)}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'VendaSemEstoque/1.0' },
+    });
+    if (!response.ok) return null;
+    const item = await response.json() as {
+      id: string;
+      title: string;
+      permalink: string;
+      thumbnail?: string;
+      pictures?: Array<{ url: string }>;
+      price: number;
+      original_price?: number;
+      available_quantity?: number;
+      sold_quantity?: number;
+      attributes?: Array<{ id: string; value_name?: string }>;
+    };
+    const oldPrice = item.original_price && item.original_price > item.price ? item.original_price : undefined;
+    return {
+      externalProductId: item.id,
+      name: item.title,
+      description: item.title,
+      categoryName: 'Ofertas do Mercado Livre',
+      brand: item.attributes?.find((attribute) => attribute.id === 'BRAND')?.value_name,
+      imageUrl: item.thumbnail?.replace('-I.jpg', '-O.jpg') || item.pictures?.[0]?.url || '',
+      images: item.pictures?.map((picture) => picture.url) || [],
+      price: item.price,
+      oldPrice,
+      discountPercentage: oldPrice ? Math.round(((oldPrice - item.price) / oldPrice) * 100) : undefined,
+      rating: 0,
+      reviewCount: 0,
+      salesCount: item.sold_quantity || 0,
+      commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
+      commissionValue: 0,
+      originalUrl: item.permalink,
+      affiliateUrl: item.permalink,
+      isAvailable: (item.available_quantity || 0) > 0,
+    } satisfies ExternalProduct;
   }
 
   async getCategories(): Promise<{ id: string; name: string; slug: string }[]> {
@@ -90,7 +127,8 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
   }
 
   async getAvailability(externalId: string): Promise<boolean> {
-    return this.mockFallback.getAvailability(externalId);
+    const product = await this.getProduct(externalId);
+    return Boolean(product?.isAvailable);
   }
 
   async createAffiliateLink(productUrl: string, customTrackingId?: string): Promise<string> {

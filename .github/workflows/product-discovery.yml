@@ -29,4 +29,6 @@ jobs:
           MERCADOLIVRE_ACCESS_TOKEN: ${{ secrets.MERCADOLIVRE_ACCESS_TOKEN }}
           MERCADOLIVRE_COMMISSION_PERCENTAGE: ${{ vars.MERCADOLIVRE_COMMISSION_PERCENTAGE || '10' }}
           PRODUCT_SEARCHES: ${{ vars.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa' }}
+          PRODUCT_MIN_PRICE: ${{ vars.PRODUCT_MIN_PRICE || '30' }}
+          PRODUCT_MAX_PRICE: ${{ vars.PRODUCT_MAX_PRICE || '5000' }}
         run: npm run products:discover
