@@ -7,7 +7,9 @@ export async function registerClickAndGetAffiliateUrl(data: AffiliateClickData):
   if (productError) throw productError;
   if (!product?.affiliate_url) throw new Error('Produto não encontrado');
 
+  const clickId = crypto.randomUUID();
   const { data: click, error: clickError } = await supabase.from('clicks').insert({
+    id: clickId,
     product_id: data.productId,
     affiliate_link_id: data.affiliateLinkId || null,
     session_id: data.sessionId || `sess_${crypto.randomUUID()}`,
@@ -17,18 +19,21 @@ export async function registerClickAndGetAffiliateUrl(data: AffiliateClickData):
     utm_campaign: data.utmCampaign || null,
     device: data.device || 'desktop',
     ip_hash: data.ipHash || null,
+    created_at: new Date().toISOString(),
   }).select('id').single();
-  if (clickError) throw clickError;
+  if (clickError) console.warn('Could not record affiliate click:', clickError.message);
 
-  const { data: metric } = await supabase.from('product_metrics').select('total_clicks').eq('product_id', data.productId).maybeSingle();
+  const { data: metric } = await supabase.from('product_metrics').select('id,total_clicks').eq('product_id', data.productId).maybeSingle();
   const { error: metricError } = await supabase.from('product_metrics').upsert({
+    id: metric?.id || crypto.randomUUID(),
     product_id: data.productId,
     total_clicks: (metric?.total_clicks || 0) + 1,
+    updated_at: new Date().toISOString(),
   }, { onConflict: 'product_id' });
   if (metricError) console.warn('Could not update product metrics:', metricError.message);
 
   const affiliateUrl = new URL(product.affiliate_url);
-  affiliateUrl.searchParams.set('subid_click', click.id);
+  affiliateUrl.searchParams.set('subid_click', click?.id || clickId);
   return affiliateUrl.toString();
 }
 
