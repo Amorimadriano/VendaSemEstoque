@@ -80,8 +80,10 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
           throw new Error('Mercado Livre recusou a autorização e a busca pública também falhou (403). Verifique se o refresh token pertence ao mesmo CLIENT_ID da aplicação.');
         }
       }
-      if (!response.ok) throw new Error(`Mercado Livre API returned ${response?.status || 'unknown'}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+      if (!response?.ok) throw new Error(`Mercado Livre API returned ${response?.status || 'unknown'}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
     }
+
+    if (!response) throw new Error('Mercado Livre API returned no response');
 
     const data = await response.json() as {
       results?: Array<{
