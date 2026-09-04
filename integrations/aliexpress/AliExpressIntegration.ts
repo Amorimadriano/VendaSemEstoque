@@ -13,7 +13,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     const params: Record<string, string> = {
       app_key: process.env.ALIEXPRESS_APP_KEY || '',
       method: 'aliexpress.affiliate.product.query',
-      sign_method: 'hmac',
+      sign_method: 'hmac-sha256',
       format: 'json',
       v: '2.0',
       timestamp: this.formatTimestamp(new Date()),
@@ -32,6 +32,10 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     const response = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(params)}`);
     if (!response.ok) throw new Error(`AliExpress API returned ${response.status}`);
     const payload = await response.json() as any;
+    if (payload.error_response) {
+      const error = payload.error_response;
+      throw new Error(`AliExpress API error ${error.code || error.error_code || 'unknown'}: ${error.msg || error.message || 'request rejected'}`);
+    }
     const responseData = payload.aliexpress_affiliate_product_query_response || payload;
     let result = responseData.resp_result?.result || responseData.result || responseData;
     if (typeof result === 'string') {
