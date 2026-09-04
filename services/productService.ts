@@ -1,6 +1,6 @@
 import { ProductQueryParams } from '@/types';
 import { calculateProductScore } from '@/lib/score';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 function normalizeProduct(product: any) {
   return {
@@ -29,6 +29,7 @@ function normalizeProduct(product: any) {
 }
 
 export async function getProducts(params: ProductQueryParams) {
+  const supabase = getSupabase();
   let query = supabase.from('products').select('*, category:categories(*), marketplace:marketplaces(*), metrics:product_metrics(*)', { count: 'exact' }).eq('status', 'ACTIVE');
   if (params.categorySlug) query = query.eq('categories.slug', params.categorySlug);
   if (params.marketplaceSlug) query = query.eq('marketplaces.slug', params.marketplaceSlug);
@@ -68,6 +69,7 @@ export async function getProducts(params: ProductQueryParams) {
 }
 
 export async function getProductBySlug(slug: string) {
+  const supabase = getSupabase();
   const { data: product, error } = await supabase.from('products').select('*, category:categories(*), marketplace:marketplaces(*), metrics:product_metrics(*), priceHistories:price_history(*)').eq('slug', slug).maybeSingle();
   if (error) throw error;
   if (!product) return null;
@@ -77,12 +79,14 @@ export async function getProductBySlug(slug: string) {
 }
 
 export async function getCategories() {
+  const supabase = getSupabase();
   const { data, error } = await supabase.from('categories').select('*, products(count)').order('name');
   if (error) throw error;
   return (data || []).map((category: any) => ({ ...category, _count: { products: category.products?.[0]?.count || 0 } }));
 }
 
 export async function getMarketplaces() {
+  const supabase = getSupabase();
   const { data, error } = await supabase.from('marketplaces').select('*').order('name');
   if (error) throw error;
   return data || [];
