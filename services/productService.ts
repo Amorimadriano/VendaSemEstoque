@@ -30,9 +30,17 @@ function normalizeProduct(product: any) {
 
 export async function getProducts(params: ProductQueryParams) {
   const supabase = getSupabase();
-  let query = supabase.from('products').select('*, category:categories(*), marketplace:marketplaces(*), metrics:product_metrics(*)', { count: 'exact' }).eq('status', 'ACTIVE');
-  if (params.categorySlug) query = query.eq('categories.slug', params.categorySlug);
-  if (params.marketplaceSlug) query = query.eq('marketplaces.slug', params.marketplaceSlug);
+    let query = supabase.from('products').select('*, category:categories(*), marketplace:marketplaces(*), metrics:product_metrics(*)', { count: 'exact' }).eq('status', 'ACTIVE');
+    if (params.categorySlug) {
+      const { data: categories, error } = await supabase.from('categories').select('id').eq('slug', params.categorySlug);
+      if (error) throw error;
+      query = query.in('category_id', (categories || []).map((category) => category.id));
+    }
+    if (params.marketplaceSlug) {
+      const { data: marketplaces, error } = await supabase.from('marketplaces').select('id').eq('slug', params.marketplaceSlug);
+      if (error) throw error;
+      query = query.in('marketplace_id', (marketplaces || []).map((marketplace) => marketplace.id));
+    }
   if (params.isBestSeller) query = query.eq('is_best_seller', true);
   if (params.isTrending) query = query.eq('is_trending', true);
   if (params.minPrice !== undefined) query = query.gte('price', params.minPrice);
