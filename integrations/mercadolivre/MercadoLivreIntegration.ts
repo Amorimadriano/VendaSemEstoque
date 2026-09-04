@@ -8,11 +8,14 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
 
   private async getAccessToken() {
     if (this.accessToken) return this.accessToken;
+    if (process.env.MERCADOLIVRE_ACCESS_TOKEN) {
+      this.accessToken = process.env.MERCADOLIVRE_ACCESS_TOKEN;
+      return this.accessToken;
+    }
     if (process.env.MERCADOLIVRE_REFRESH_TOKEN) {
       return this.refreshAccessToken();
     }
-    this.accessToken = process.env.MERCADOLIVRE_ACCESS_TOKEN;
-    return this.accessToken;
+    return undefined;
   }
 
   private async refreshAccessToken() {
