@@ -6,15 +6,22 @@ export class AliExpressIntegration implements MarketplaceIntegration {
   marketplaceName = 'AliExpress';
 
   async getProducts(query?: string, category?: string, limit = 10): Promise<ExternalProduct[]> {
+    if (!process.env.ALIEXPRESS_APP_KEY || !process.env.ALIEXPRESS_APP_SECRET || !process.env.ALIEXPRESS_TRACKING_ID) {
+      throw new Error('AliExpress credentials are missing: configure ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET and ALIEXPRESS_TRACKING_ID');
+    }
+
     const params: Record<string, string> = {
       app_key: process.env.ALIEXPRESS_APP_KEY || '',
       method: 'aliexpress.affiliate.product.query',
       sign_method: 'hmac',
       format: 'json',
       v: '2.0',
-      timestamp: new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14),
+      timestamp: this.formatTimestamp(new Date()),
       keywords: query || 'best sellers',
+      page_no: '1',
       page_size: String(Math.min(limit, 50)),
+      ship_to_country: 'BR',
+      sort: 'SALE_PRICE_ASC',
       target_currency: 'BRL',
       target_language: 'PT',
       tracking_id: process.env.ALIEXPRESS_TRACKING_ID || '',
@@ -25,10 +32,23 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     const response = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(params)}`);
     if (!response.ok) throw new Error(`AliExpress API returned ${response.status}`);
     const payload = await response.json() as any;
-    const result = payload.aliexpress_affiliate_product_query_response?.resp_result?.result;
-    if (result?.resp_code && result.resp_code !== 200) throw new Error(`AliExpress API returned ${result.resp_code}: ${result.resp_msg || 'request failed'}`);
+    const responseData = payload.aliexpress_affiliate_product_query_response || payload;
+    let result = responseData.resp_result?.result || responseData.result || responseData;
+    if (typeof result === 'string') {
+      try {
+        result = JSON.parse(result);
+      } catch {
+        throw new Error('AliExpress API returned an unreadable result payload');
+      }
+    }
+    const responseCode = result?.resp_code || responseData.resp_code;
+    if (responseCode && String(responseCode) !== '200') throw new Error(`AliExpress API returned ${responseCode}: ${result.resp_msg || responseData.resp_msg || 'request failed'}`);
 
-    const products = result?.products?.product || result?.products || [];
+    const productsPayload = result?.products?.product || result?.products || result?.product || [];
+    const products = Array.isArray(productsPayload) ? productsPayload : [productsPayload];
+    if (products.length === 0) {
+      console.warn('AliExpress returned no products. Response keys:', Object.keys(payload));
+    }
     return products.map((item: any) => {
       const price = Number(item.target_sale_price || item.sale_price || item.original_price || 0);
       const oldPrice = Number(item.target_original_price || item.original_price || 0) || undefined;
@@ -99,5 +119,10 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(content));
     return Array.from(new Uint8Array(signature)).map((byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+
+  private formatTimestamp(date: Date) {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 }
