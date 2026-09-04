@@ -42,5 +42,5 @@ jobs:
           MARKETPLACES_TO_SYNC: ${{ vars.MARKETPLACES_TO_SYNC || 'aliexpress' }}
         run: |
           test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "Missing SUPABASE_SERVICE_ROLE_KEY secret" && exit 1)
-          test -n "$MERCADOLIVRE_ACCESS_TOKEN" || test -n "$MERCADOLIVRE_REFRESH_TOKEN" || (echo "Missing Mercado Livre OAuth secret" && exit 1)
+          test -n "$MERCADOLIVRE_REFRESH_TOKEN" || (echo "Missing MERCADOLIVRE_REFRESH_TOKEN secret" && exit 1)
           npm run products:discover
