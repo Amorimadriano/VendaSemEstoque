@@ -1,11 +1,9 @@
 import { MarketplaceIntegration } from '../MarketplaceIntegration';
-import { MockMarketplace } from '../mock/MockMarketplace';
 import { ExternalProduct } from '../../types';
 
 export class MercadoLivreIntegration implements MarketplaceIntegration {
   marketplaceSlug = 'mercadolivre';
   marketplaceName = 'Mercado Livre';
-  private mockFallback = new MockMarketplace('mercadolivre', 'Mercado Livre');
   private accessToken?: string;
 
   private async getAccessToken() {
@@ -175,11 +173,15 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
   }
 
   async getCategories(): Promise<{ id: string; name: string; slug: string }[]> {
-    return this.mockFallback.getCategories();
+    const response = await fetch('https://api.mercadolibre.com/sites/MLB/categories', { headers: { Accept: 'application/json', 'User-Agent': 'VendaSemEstoque/1.0' } });
+    if (!response.ok) throw new Error(`Mercado Livre categories API returned ${response.status}`);
+    const categories = await response.json() as Array<{ id: string; name: string }>;
+    return categories.map((category) => ({ id: category.id, name: category.name, slug: category.id.toLowerCase() }));
   }
 
   async getPrice(externalId: string): Promise<{ price: number; oldPrice?: number } | null> {
-    return this.mockFallback.getPrice(externalId);
+    const product = await this.getProduct(externalId);
+    return product ? { price: product.price, oldPrice: product.oldPrice } : null;
   }
 
   async getAvailability(externalId: string): Promise<boolean> {
@@ -197,14 +199,14 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
   }
 
   async getClicks(startDate?: Date, endDate?: Date): Promise<number> {
-    return this.mockFallback.getClicks(startDate, endDate);
+    throw new Error('Mercado Livre clicks require the affiliate reporting API');
   }
 
   async getConversions(startDate?: Date, endDate?: Date): Promise<any[]> {
-    return this.mockFallback.getConversions(startDate, endDate);
+    throw new Error('Mercado Livre conversions require the affiliate reporting API');
   }
 
   async getCommissions(startDate?: Date, endDate?: Date): Promise<{ total: number; pending: number; approved: number }> {
-    return this.mockFallback.getCommissions(startDate, endDate);
+    throw new Error('Mercado Livre commissions require the affiliate reporting API');
   }
 }

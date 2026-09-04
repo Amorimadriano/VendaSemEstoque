@@ -1,6 +1,5 @@
 import prisma from '@/lib/prisma';
 import { AffiliateClickData } from '@/types';
-import { getMockProductBySlug } from './mockData';
 
 export async function registerClickAndGetAffiliateUrl(data: AffiliateClickData): Promise<string> {
   try {
@@ -13,10 +12,6 @@ export async function registerClickAndGetAffiliateUrl(data: AffiliateClickData):
     });
 
     if (!product) {
-      const mockResult = getMockProductBySlug(data.productId);
-      if (mockResult?.product?.affiliateUrl) {
-        return mockResult.product.affiliateUrl;
-      }
       throw new Error('Produto não encontrado');
     }
 
@@ -52,11 +47,7 @@ export async function registerClickAndGetAffiliateUrl(data: AffiliateClickData):
     return affiliateUrl.toString();
   } catch (error) {
     console.warn('Prisma tracking failed, returning fallback affiliate link:', error);
-    const mockResult = getMockProductBySlug(data.productId);
-    if (mockResult?.product?.affiliateUrl) {
-      return mockResult.product.affiliateUrl;
-    }
-    return 'https://amazon.com.br';
+    throw error;
   }
 }
 

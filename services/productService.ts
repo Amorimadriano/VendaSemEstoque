@@ -2,12 +2,6 @@ import prisma from '@/lib/prisma';
 import { ProductQueryParams } from '@/types';
 import { calculateProductScore } from '@/lib/score';
 import { Prisma } from '@prisma/client';
-import {
-  getMockProducts,
-  getMockProductBySlug,
-  MOCK_CATEGORIES,
-  MOCK_MARKETPLACES,
-} from './mockData';
 
 export async function getProducts(params: ProductQueryParams) {
   try {
@@ -125,10 +119,6 @@ export async function getProducts(params: ProductQueryParams) {
       };
     });
 
-    if (enrichedProducts.length === 0 && !search && !categorySlug) {
-      return getMockProducts(params);
-    }
-
     return {
       products: enrichedProducts,
       total,
@@ -136,8 +126,8 @@ export async function getProducts(params: ProductQueryParams) {
       totalPages: Math.ceil(total / limit) || 1,
     };
   } catch (error) {
-    console.warn('Prisma query failed, using mock products:', error);
-    return getMockProducts(params);
+    console.error('Failed to load products from Supabase:', error);
+    throw error;
   }
 }
 
@@ -156,9 +146,7 @@ export async function getProductBySlug(slug: string) {
       },
     });
 
-    if (!product) {
-      return getMockProductBySlug(slug);
-    }
+    if (!product) return null;
 
     const similarProducts = await prisma.product.findMany({
       where: {
@@ -177,8 +165,8 @@ export async function getProductBySlug(slug: string) {
       similarProducts,
     };
   } catch (error) {
-    console.warn('Prisma query failed, using mock product by slug:', error);
-    return getMockProductBySlug(slug);
+    console.error('Failed to load product from Supabase:', error);
+    throw error;
   }
 }
 
@@ -192,11 +180,10 @@ export async function getCategories() {
       },
       orderBy: { name: 'asc' },
     });
-    if (!categories || categories.length === 0) return MOCK_CATEGORIES;
     return categories;
   } catch (error) {
-    console.warn('Prisma query failed, using mock categories:', error);
-    return MOCK_CATEGORIES;
+    console.error('Failed to load categories from Supabase:', error);
+    throw error;
   }
 }
 
@@ -205,10 +192,9 @@ export async function getMarketplaces() {
     const marketplaces = await prisma.marketplace.findMany({
       orderBy: { name: 'asc' },
     });
-    if (!marketplaces || marketplaces.length === 0) return MOCK_MARKETPLACES;
     return marketplaces;
   } catch (error) {
-    console.warn('Prisma query failed, using mock marketplaces:', error);
-    return MOCK_MARKETPLACES;
+    console.error('Failed to load marketplaces from Supabase:', error);
+    throw error;
   }
 }
