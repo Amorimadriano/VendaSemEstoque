@@ -122,6 +122,13 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
 }
 
 export async function runProductDiscovery() {
+  if (MARKETPLACES.includes('mercadolivre') && !process.env.MERCADOLIVRE_ACCESS_TOKEN && !process.env.MERCADOLIVRE_REFRESH_TOKEN) {
+    throw new Error('Mercado Livre OAuth não configurado: cadastre MERCADOLIVRE_ACCESS_TOKEN ou MERCADOLIVRE_REFRESH_TOKEN.');
+  }
+  if (MARKETPLACES.includes('aliexpress') && (!process.env.ALIEXPRESS_APP_KEY || !process.env.ALIEXPRESS_APP_SECRET || !process.env.ALIEXPRESS_TRACKING_ID)) {
+    throw new Error('AliExpress não configurado: cadastre ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET e ALIEXPRESS_TRACKING_ID.');
+  }
+
   const discovered = new Map<string, ExternalProduct>();
 
   for (const marketplaceSlug of MARKETPLACES) {
@@ -145,7 +152,7 @@ export async function runProductDiscovery() {
   }
 
   if (discovered.size === 0) {
-    throw new Error('Nenhum produto foi encontrado. Verifique MERCADOLIVRE_ACCESS_TOKEN/MERCADOLIVRE_REFRESH_TOKEN e os limites da API do Mercado Livre.');
+    throw new Error(`Nenhum produto foi encontrado em ${MARKETPLACES.join(', ')}. Verifique as credenciais, a aprovação da conta de afiliado e os limites da API.`);
   }
 
   for (const marketplaceSlug of MARKETPLACES) {
