@@ -31,9 +31,6 @@ jobs:
           DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
         run: |
           npx prisma generate
-          if [ -n "$DATABASE_URL" ]; then
-            npx tsx prisma/seed.ts || true
-          fi
           npm run build
           npx @cloudflare/next-on-pages
 
