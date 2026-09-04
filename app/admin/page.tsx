@@ -56,7 +56,19 @@ export default function AdminDashboardPage() {
       const dataCats = await resCats.json();
       const dataMarkets = await resMarkets.json();
 
-      setMetrics(dataMetrics);
+      setMetrics(dataMetrics.summary ? dataMetrics : {
+        summary: {
+          totalProducts: 0,
+          activeProducts: 0,
+          trendingProducts: 0,
+          bestSellerProducts: 0,
+          totalClicks: 0,
+          totalConversions: 0,
+          conversionRate: 0,
+          totalSaleValue: 0,
+          commissions: { total: 0, pending: 0, approved: 0, paid: 0 },
+        },
+      });
       setProducts(dataProducts.products || []);
       setCategories(dataCats || []);
       setMarketplaces(dataMarkets || []);

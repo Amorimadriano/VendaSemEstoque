@@ -1,42 +1,36 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getSupabase } from '@/lib/supabase';
 
 export const runtime = 'edge';
 
 export async function GET() {
   try {
-    const [
-      totalProducts,
-      activeProducts,
-      trendingProducts,
-      bestSellerProducts,
-      totalClicks,
-      conversions,
-      commissions,
-      topProducts,
-      marketplaces,
-    ] = await Promise.all([
-      prisma.product.count(),
-      prisma.product.count({ where: { status: 'ACTIVE' } }),
-      prisma.product.count({ where: { isTrending: true } }),
-      prisma.product.count({ where: { isBestSeller: true } }),
-      prisma.click.count(),
-      prisma.conversion.findMany(),
-      prisma.commission.findMany(),
-      prisma.product.findMany({
-        take: 10,
-        orderBy: { popularityScore: 'desc' },
-        include: { marketplace: true, metrics: true },
-      }),
-      prisma.marketplace.findMany({
-        include: {
-          _count: { select: { products: true, conversions: true } },
-        },
-      }),
+    const supabase = getSupabase();
+    const [{ count: totalProducts }, { count: activeProducts }, { count: trendingProducts }, { count: bestSellerProducts }, { count: totalClicks }, conversionsResult, commissionsResult, productsResult, marketplacesResult] = await Promise.all([
+      supabase.from('products').select('*', { count: 'exact', head: true }),
+      supabase.from('products').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
+      supabase.from('products').select('*', { count: 'exact', head: true }).eq('is_trending', true),
+      supabase.from('products').select('*', { count: 'exact', head: true }).eq('is_best_seller', true),
+      supabase.from('clicks').select('*', { count: 'exact', head: true }),
+      supabase.from('conversions').select('sale_value'),
+      supabase.from('commissions').select('amount,status'),
+      supabase.from('products').select('*, marketplace:marketplaces(*), metrics:product_metrics(*)').order('popularity_score', { ascending: false }).limit(10),
+      supabase.from('marketplaces').select('*').order('name'),
     ]);
 
+    if (conversionsResult.error) throw conversionsResult.error;
+    if (commissionsResult.error) throw commissionsResult.error;
+    if (productsResult.error) throw productsResult.error;
+    if (marketplacesResult.error) throw marketplacesResult.error;
+
+    const conversions = conversionsResult.data || [];
+    const commissions = commissionsResult.data || [];
+    const topProducts = productsResult.data || [];
+    const marketplaces = marketplacesResult.data || [];
+
     const totalConversions = conversions.length;
-    const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
+    const clickCount = totalClicks || 0;
+    const conversionRate = clickCount > 0 ? (totalConversions / clickCount) * 100 : 0;
 
     const pendingCommission = commissions
       .filter((c) => c.status === 'PENDING')
@@ -52,15 +46,15 @@ export async function GET() {
 
     const totalEstimatedCommission = pendingCommission + approvedCommission + paidCommission;
 
-    const totalSaleValue = conversions.reduce((sum, c) => sum + c.saleValue, 0);
+    const totalSaleValue = conversions.reduce((sum, c) => sum + Number(c.sale_value || 0), 0);
 
     return NextResponse.json({
       summary: {
-        totalProducts,
-        activeProducts,
-        trendingProducts,
-        bestSellerProducts,
-        totalClicks,
+        totalProducts: totalProducts || 0,
+        activeProducts: activeProducts || 0,
+        trendingProducts: trendingProducts || 0,
+        bestSellerProducts: bestSellerProducts || 0,
+        totalClicks: totalClicks || 0,
         totalConversions,
         conversionRate: Math.round(conversionRate * 100) / 100,
         totalSaleValue,
