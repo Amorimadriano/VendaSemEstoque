@@ -1,6 +1,6 @@
-import prisma from '../lib/prisma';
 import { getMarketplaceIntegration } from '../integrations';
 import { ExternalProduct } from '../types';
+import { getSupabase } from '../lib/supabase';
 
 const SEARCHES = (process.env.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa').split(',').map((term) => term.trim()).filter(Boolean);
 const MIN_RATING = Number(process.env.PRODUCT_MIN_RATING || 4);
@@ -36,19 +36,14 @@ function calculateRanking(product: ExternalProduct, commissionPercentage: number
 }
 
 async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) {
+  const supabase = getSupabase();
   const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : 'Mercado Livre';
-  const marketplace = await prisma.marketplace.upsert({
-    where: { slug: marketplaceSlug },
-    update: {},
-    create: { name: marketplaceName, slug: marketplaceSlug, affiliateStatus: 'ACTIVE', apiStatus: 'ACTIVE' },
-  });
+  const { data: marketplace, error: marketplaceError } = await supabase.from('marketplaces').upsert({ name: marketplaceName, slug: marketplaceSlug, affiliate_status: 'ACTIVE', api_status: 'ACTIVE' }, { onConflict: 'slug' }).select('id').single();
+  if (marketplaceError) throw marketplaceError;
 
   const categorySlug = toSlug(product.categoryName || 'ofertas');
-  const category = await prisma.category.upsert({
-    where: { slug: categorySlug },
-    update: {},
-    create: { name: product.categoryName || 'Ofertas', slug: categorySlug },
-  });
+  const { data: category, error: categoryError } = await supabase.from('categories').upsert({ name: product.categoryName || 'Ofertas', slug: categorySlug }, { onConflict: 'slug' }).select('id').single();
+  if (categoryError) throw categoryError;
 
   const affiliateUrl = await getMarketplaceIntegration(marketplaceSlug).createAffiliateLink(product.originalUrl, product.externalProductId);
   const slug = `${toSlug(product.name)}-${product.externalProductId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.slice(0, 190);
@@ -57,66 +52,41 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
   const optimizedTitle = optimizeTitle(product);
   const optimizedDescription = optimizeDescription(product);
 
-  const savedProduct = await prisma.product.upsert({
-    where: { externalProductId: product.externalProductId },
-    update: {
+  const productData = {
       name: optimizedTitle,
       description: optimizedDescription,
-      imageUrl: product.imageUrl,
+      category_id: category.id,
+      marketplace_id: marketplace.id,
+      brand: product.brand || null,
+      image_url: product.imageUrl,
       images: JSON.stringify(product.images?.length ? product.images : [product.imageUrl]),
       price: product.price,
-      oldPrice: product.oldPrice,
-      discountPercentage: product.discountPercentage,
+      old_price: product.oldPrice || null,
+      discount_percentage: product.discountPercentage || null,
       rating: product.rating,
-      reviewCount: product.reviewCount,
-      salesCount: product.salesCount || 0,
-      popularityScore: ranking,
-      trendScore: product.salesCount && product.salesCount > 100 ? ranking : 0,
-      commissionPercentage,
-      commissionValue: product.price * commissionPercentage / 100,
-      originalUrl: product.originalUrl,
-      affiliateUrl,
-      lastSyncedAt: new Date(),
-      isBestSeller: (product.salesCount || 0) >= 1000,
-      isTrending: ranking >= 35,
+      review_count: product.reviewCount,
+      sales_count: product.salesCount || 0,
+      popularity_score: ranking,
+      trend_score: product.salesCount && product.salesCount > 100 ? ranking : 0,
+      commission_percentage: commissionPercentage,
+      commission_value: product.price * commissionPercentage / 100,
+      external_product_id: product.externalProductId,
+      original_url: product.originalUrl,
+      affiliate_url: affiliateUrl,
+      last_synced_at: new Date().toISOString(),
+      is_best_seller: (product.salesCount || 0) >= 1000,
+      is_trending: ranking >= 35,
       status: 'ACTIVE',
-    },
-    create: {
-      name: optimizedTitle,
-      slug,
-      description: optimizedDescription,
-      categoryId: category.id,
-      marketplaceId: marketplace.id,
-      brand: product.brand,
-      imageUrl: product.imageUrl,
-      images: JSON.stringify(product.images?.length ? product.images : [product.imageUrl]),
-      price: product.price,
-      oldPrice: product.oldPrice,
-      discountPercentage: product.discountPercentage,
-      rating: product.rating,
-      reviewCount: product.reviewCount,
-      salesCount: product.salesCount || 0,
-      popularityScore: ranking,
-      trendScore: product.salesCount && product.salesCount > 100 ? ranking : 0,
-      commissionPercentage,
-      commissionValue: product.price * commissionPercentage / 100,
-      externalProductId: product.externalProductId,
-      originalUrl: product.originalUrl,
-      affiliateUrl,
-      isBestSeller: (product.salesCount || 0) >= 1000,
-      isTrending: ranking >= 35,
-      status: 'ACTIVE',
-      metrics: { create: {} },
-    },
-  });
+    slug,
+  };
 
-  await prisma.priceHistory.create({
-    data: {
-      productId: savedProduct.id,
-      price: product.price,
-      oldPrice: product.oldPrice,
-    },
-  });
+  const { data: savedProduct, error: productError } = await supabase.from('products').upsert(productData, { onConflict: 'external_product_id' }).select('id').single();
+  if (productError) throw productError;
+
+  const { error: historyError } = await supabase.from('price_history').insert({ product_id: savedProduct.id, price: product.price, old_price: product.oldPrice || null });
+  if (historyError) console.warn('Could not save price history:', historyError.message);
+  const { error: metricError } = await supabase.from('product_metrics').upsert({ product_id: savedProduct.id }, { onConflict: 'product_id' });
+  if (metricError) console.warn('Could not initialize product metrics:', metricError.message);
 
   return savedProduct;
 }
@@ -157,17 +127,16 @@ export async function runProductDiscovery() {
 
   for (const marketplaceSlug of MARKETPLACES) {
     const integration = getMarketplaceIntegration(marketplaceSlug);
-    const marketplace = await prisma.marketplace.findUnique({ where: { slug: marketplaceSlug } });
+    const supabase = getSupabase();
+    const { data: marketplace } = await supabase.from('marketplaces').select('id').eq('slug', marketplaceSlug).maybeSingle();
     if (!marketplace) continue;
-    const existing = await prisma.product.findMany({
-      where: { marketplaceId: marketplace.id, status: 'ACTIVE' },
-      select: { id: true, externalProductId: true },
-    });
+    const { data: existing, error: existingError } = await supabase.from('products').select('id,external_product_id').eq('marketplace_id', marketplace.id).eq('status', 'ACTIVE');
+    if (existingError) throw existingError;
     for (const product of existing) {
-      if (!discovered.has(`${marketplaceSlug}:${product.externalProductId}`)) {
-        const available = await integration.getAvailability(product.externalProductId);
+      if (!discovered.has(`${marketplaceSlug}:${product.external_product_id}`)) {
+        const available = await integration.getAvailability(product.external_product_id);
         if (!available) {
-          await prisma.product.update({ where: { id: product.id }, data: { status: 'OUT_OF_STOCK', lastSyncedAt: new Date() } });
+          await supabase.from('products').update({ status: 'OUT_OF_STOCK', last_synced_at: new Date().toISOString() }).eq('id', product.id);
         }
       }
     }
@@ -187,5 +156,5 @@ if (require.main === module) {
       console.error(error);
       process.exit(1);
     })
-    .finally(() => prisma.$disconnect());
+    .finally(() => undefined);
 }

@@ -23,6 +23,8 @@ jobs:
 
       - name: Discover and sync AliExpress products
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DATABASE_URL: ${{ secrets.SUPABASE_POOLER_DATABASE_URL || secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.SUPABASE_DIRECT_DATABASE_URL || secrets.DIRECT_URL }}
           ALIEXPRESS_APP_KEY: ${{ secrets.ALIEXPRESS_APP_KEY }}
