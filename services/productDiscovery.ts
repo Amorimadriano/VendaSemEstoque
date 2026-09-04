@@ -37,14 +37,15 @@ function calculateRanking(product: ExternalProduct, commissionPercentage: number
 
 async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) {
   const supabase = getSupabase();
+  const now = new Date().toISOString();
   const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : 'Mercado Livre';
   const { data: currentMarketplace } = await supabase.from('marketplaces').select('id').eq('slug', marketplaceSlug).maybeSingle();
-  const { data: marketplace, error: marketplaceError } = await supabase.from('marketplaces').upsert({ id: currentMarketplace?.id || crypto.randomUUID(), name: marketplaceName, slug: marketplaceSlug, affiliate_status: 'ACTIVE', api_status: 'ACTIVE' }, { onConflict: 'slug' }).select('id').single();
+  const { data: marketplace, error: marketplaceError } = await supabase.from('marketplaces').upsert({ id: currentMarketplace?.id || crypto.randomUUID(), name: marketplaceName, slug: marketplaceSlug, affiliate_status: 'ACTIVE', api_status: 'ACTIVE', created_at: now, updated_at: now }, { onConflict: 'slug' }).select('id').single();
   if (marketplaceError) throw marketplaceError;
 
   const categorySlug = toSlug(product.categoryName || 'ofertas');
   const { data: currentCategory } = await supabase.from('categories').select('id').eq('slug', categorySlug).maybeSingle();
-  const { data: category, error: categoryError } = await supabase.from('categories').upsert({ id: currentCategory?.id || crypto.randomUUID(), name: product.categoryName || 'Ofertas', slug: categorySlug }, { onConflict: 'slug' }).select('id').single();
+  const { data: category, error: categoryError } = await supabase.from('categories').upsert({ id: currentCategory?.id || crypto.randomUUID(), name: product.categoryName || 'Ofertas', slug: categorySlug, created_at: now, updated_at: now }, { onConflict: 'slug' }).select('id').single();
   if (categoryError) throw categoryError;
 
   const affiliateUrl = await getMarketplaceIntegration(marketplaceSlug).createAffiliateLink(product.originalUrl, product.externalProductId);
@@ -78,6 +79,8 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
       original_url: product.originalUrl,
       affiliate_url: affiliateUrl,
       last_synced_at: new Date().toISOString(),
+      updated_at: now,
+      created_at: now,
       is_best_seller: (product.salesCount || 0) >= 1000,
       is_trending: ranking >= 35,
       status: 'ACTIVE',
@@ -89,7 +92,7 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
 
   const { error: historyError } = await supabase.from('price_history').insert({ id: crypto.randomUUID(), product_id: savedProduct.id, price: product.price, old_price: product.oldPrice || null });
   if (historyError) console.warn('Could not save price history:', historyError.message);
-  const { error: metricError } = await supabase.from('product_metrics').upsert({ id: crypto.randomUUID(), product_id: savedProduct.id }, { onConflict: 'product_id' });
+  const { error: metricError } = await supabase.from('product_metrics').upsert({ id: crypto.randomUUID(), product_id: savedProduct.id, updated_at: now }, { onConflict: 'product_id' });
   if (metricError) console.warn('Could not initialize product metrics:', metricError.message);
 
   return savedProduct;
