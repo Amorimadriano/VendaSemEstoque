@@ -5,7 +5,7 @@ const REAL_ML_TOP_PRODUCTS = [
   {
     id: 'MLB3648937748',
     title: 'Samsung Galaxy S24 Ultra 512GB Titânio Cinza 12GB RAM',
-    permalink: 'https://www.mercadolivre.com.br/samsung-galaxy-s24-ultra-5g-dual-sim-512-gb-titanium-gray-12-gb-ram/p/MLB29819234',
+    permalink: 'https://lista.mercadolivre.com.br/samsung-galaxy-s24-ultra-512gb',
     thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_698246-MLA74079815045_012024-O.webp',
     price: 6499.00,
     original_price: 7999.00,
@@ -17,7 +17,7 @@ const REAL_ML_TOP_PRODUCTS = [
   {
     id: 'MLB3519827364',
     title: 'Apple iPhone 15 128GB Preto Tela 6.1" Câmera Dupla 48MP',
-    permalink: 'https://www.mercadolivre.com.br/apple-iphone-15-128-gb-preto/p/MLB27629384',
+    permalink: 'https://lista.mercadolivre.com.br/iphone-15-128gb-preto',
     thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_753856-MLA71782867498_092023-O.webp',
     price: 4799.00,
     original_price: 5899.00,
@@ -29,7 +29,7 @@ const REAL_ML_TOP_PRODUCTS = [
   {
     id: 'MLB3391827461',
     title: 'Fone de Ouvido Sem Fio JBL Tune 520BT Bluetooth com Microfone',
-    permalink: 'https://www.mercadolivre.com.br/fone-de-ouvido-on-ear-sem-fio-jbl-tune-520bt-preto/p/MLB22918273',
+    permalink: 'https://lista.mercadolivre.com.br/fone-jbl-tune-520bt-sem-fio',
     thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_864834-MLA54955743841_042023-O.webp',
     price: 239.90,
     original_price: 299.90,
@@ -41,7 +41,7 @@ const REAL_ML_TOP_PRODUCTS = [
   {
     id: 'MLB3418293847',
     title: 'Smart TV 50" 4K UHD Samsung Crystal CU7700 Gaming Hub HDR',
-    permalink: 'https://www.mercadolivre.com.br/smart-tv-50-crystal-uhd-4k-samsung-50cu7700/p/MLB23918274',
+    permalink: 'https://lista.mercadolivre.com.br/smart-tv-50-samsung-crystal-4k',
     thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_789182-MLA70129384712_062023-O.webp',
     price: 2199.00,
     original_price: 2799.00,
@@ -53,7 +53,7 @@ const REAL_ML_TOP_PRODUCTS = [
   {
     id: 'MLB3281947261',
     title: 'Fritadeira Elétrica Sem Óleo Air Fryer Mondial Family 4 Litros',
-    permalink: 'https://www.mercadolivre.com.br/fritadeira-eletrica-sem-oleo-mondial-air-fryer-afn-40-4l/p/MLB19827364',
+    permalink: 'https://lista.mercadolivre.com.br/air-fryer-mondial-family-4-litros',
     thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_891273-MLA50192837461_052022-O.webp',
     price: 289.90,
     original_price: 379.90,
@@ -65,7 +65,7 @@ const REAL_ML_TOP_PRODUCTS = [
   {
     id: 'MLB3192847162',
     title: 'Echo Dot 5ª Geração Smart Speaker com Alexa Cor Preta',
-    permalink: 'https://www.mercadolivre.com.br/echo-dot-5-geracao-com-alexa-preto/p/MLB20918273',
+    permalink: 'https://lista.mercadolivre.com.br/echo-dot-5-geracao-alexa-preto',
     thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_691823-MLA51928374619_102022-O.webp',
     price: 349.00,
     original_price: 429.00,
@@ -77,7 +77,7 @@ const REAL_ML_TOP_PRODUCTS = [
   {
     id: 'MLB3519283746',
     title: 'Caixa de Som Bluetooth Portátil JBL Flip 6 À Prova D\'água 20W',
-    permalink: 'https://www.mercadolivre.com.br/caixa-de-som-portatil-jbl-flip-6-bluetooth-preto/p/MLB19283746',
+    permalink: 'https://lista.mercadolivre.com.br/jbl-flip-6-caixa-som-bluetooth',
     thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_781923-MLA49182736451_022022-O.webp',
     price: 649.00,
     original_price: 849.00,
@@ -89,7 +89,7 @@ const REAL_ML_TOP_PRODUCTS = [
   {
     id: 'MLB3491827364',
     title: 'Notebook Lenovo IdeaPad 1 15.6" AMD Ryzen 5 8GB 256GB SSD Windows 11',
-    permalink: 'https://www.mercadolivre.com.br/notebook-lenovo-ideapad-1-15-amd-ryzen-5-8gb-256gb-ssd/p/MLB28192837',
+    permalink: 'https://lista.mercadolivre.com.br/notebook-lenovo-ideapad-ryzen-5-8gb-ssd',
     thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_891827-MLA71928374619_092023-O.webp',
     price: 2499.00,
     original_price: 3199.00,

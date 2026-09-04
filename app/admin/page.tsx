@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -119,6 +120,21 @@ export default function AdminDashboardPage() {
       }
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (!confirm(`Deseja realmente excluir o produto "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchData();
+      } else {
+        alert('Erro ao excluir produto.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao excluir produto.');
     }
   };
 
@@ -257,14 +273,23 @@ export default function AdminDashboardPage() {
                     </span>
                   </td>
                   <td className="p-4 text-right">
-                    <a
-                      href={`/go/${p.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold"
-                    >
-                      Testar Link <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <div className="flex items-center justify-end gap-2">
+                      <a
+                        href={`/go/${p.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-[11px] bg-blue-50 px-2 py-1 rounded-lg border border-blue-200"
+                      >
+                        Link <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <button
+                        onClick={() => handleDeleteProduct(p.id, p.name)}
+                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Excluir produto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
