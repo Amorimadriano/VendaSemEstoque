@@ -22,7 +22,11 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     if (!process.env.MERCADOLIVRE_REFRESH_TOKEN || !process.env.MERCADOLIVRE_CLIENT_ID || !process.env.MERCADOLIVRE_CLIENT_SECRET) return undefined;
     const response = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
       body: new URLSearchParams({
         grant_type: 'refresh_token',
         client_id: process.env.MERCADOLIVRE_CLIENT_ID,
@@ -32,7 +36,8 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(`Mercado Livre token refresh failed (${response.status})${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+      console.warn(`Mercado Livre token refresh warning (${response.status}): ${detail.slice(0, 200)}`);
+      return undefined;
     }
     const data = await response.json() as { access_token?: string; refresh_token?: string };
     this.accessToken = data.access_token;
@@ -44,11 +49,10 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     const search = new URL('https://api.mercadolibre.com/sites/MLB/search');
     search.searchParams.set('q', query || 'ofertas');
     search.searchParams.set('limit', String(Math.min(limit, 50)));
-    search.searchParams.set('sort', 'relevance');
 
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'User-Agent': 'VendaSemEstoque/1.0',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     };
     let accessToken = await this.getAccessToken();
     if (accessToken) {
@@ -58,7 +62,7 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     let response: Response | undefined;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       response = await fetch(search, { headers });
-      if ((response.status === 401 || response.status === 403) && process.env.MERCADOLIVRE_REFRESH_TOKEN) {
+      if (response.status === 401 && process.env.MERCADOLIVRE_REFRESH_TOKEN) {
         accessToken = await this.refreshAccessToken();
         if (accessToken) {
           headers.Authorization = `Bearer ${accessToken}`;
@@ -69,21 +73,10 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
       if (![429, 500, 502, 503, 504].includes(response.status)) break;
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     }
+
     if (!response?.ok) {
       const detail = response ? await response.text().catch(() => '') : '';
-      if (response?.status === 401 || response?.status === 403) {
-        const publicHeaders = {
-          Accept: 'application/json',
-          'User-Agent': 'VendaSemEstoque/1.0',
-        };
-        const publicResponse = await fetch(search, { headers: publicHeaders });
-        if (publicResponse.ok) {
-          response = publicResponse;
-        } else {
-          throw new Error('Mercado Livre recusou a autorização e a busca pública também falhou (403). Verifique se o refresh token pertence ao mesmo CLIENT_ID da aplicação.');
-        }
-      }
-      if (!response?.ok) throw new Error(`Mercado Livre API returned ${response?.status || 'unknown'}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+      throw new Error(`Mercado Livre API returned ${response?.status || 'unknown'}: ${detail.slice(0, 300)}`);
     }
 
     if (!response) throw new Error('Mercado Livre API returned no response');
@@ -135,7 +128,10 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
 
   async getProduct(externalId: string): Promise<ExternalProduct | null> {
     const response = await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(externalId)}`, {
-      headers: { Accept: 'application/json', 'User-Agent': 'VendaSemEstoque/1.0' },
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
     });
     if (!response.ok) return null;
     const item = await response.json() as {
@@ -174,7 +170,12 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
   }
 
   async getCategories(): Promise<{ id: string; name: string; slug: string }[]> {
-    const response = await fetch('https://api.mercadolibre.com/sites/MLB/categories', { headers: { Accept: 'application/json', 'User-Agent': 'VendaSemEstoque/1.0' } });
+    const response = await fetch('https://api.mercadolibre.com/sites/MLB/categories', {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
     if (!response.ok) throw new Error(`Mercado Livre categories API returned ${response.status}`);
     const categories = await response.json() as Array<{ id: string; name: string }>;
     return categories.map((category) => ({ id: category.id, name: category.name, slug: category.id.toLowerCase() }));
