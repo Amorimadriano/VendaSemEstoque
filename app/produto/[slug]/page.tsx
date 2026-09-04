@@ -194,7 +194,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
             <h3 className="text-base font-bold text-gray-900">Histórico Recente de Preço</h3>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2">
-            {product.priceHistories.map((ph, i) => (
+            {product.priceHistories.map((ph: any, i: number) => (
               <div key={i} className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-center min-w-[120px]">
                 <div className="text-[10px] text-gray-400">
                   {new Date(ph.recordedAt).toLocaleDateString('pt-BR')}
