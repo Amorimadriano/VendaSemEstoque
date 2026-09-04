@@ -5,6 +5,8 @@ import { notFound } from 'next/navigation';
 import { Star, ShieldCheck, ExternalLink, Info, CheckCircle2, TrendingUp, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
+type ProductCardProduct = Parameters<typeof ProductCard>[0]['product'];
+
 export const runtime = 'edge';
 
 interface ProductPageProps {
@@ -213,7 +215,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         <section className="space-y-4">
           <h3 className="text-xl font-bold text-gray-900">Produtos Similares Recomendados</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {similarProducts.map((simProd) => (
+            {similarProducts.map((simProd: ProductCardProduct) => (
               <ProductCard key={simProd.id} product={simProd} />
             ))}
           </div>
