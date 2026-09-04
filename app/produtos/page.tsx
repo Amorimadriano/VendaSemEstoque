@@ -4,6 +4,8 @@ import { getProducts, getCategories, getMarketplaces } from '@/services/productS
 import Link from 'next/link';
 import { Search } from 'lucide-react';
 
+type ProductCardProduct = Parameters<typeof ProductCard>[0]['product'];
+
 export const runtime = 'edge';
 
 interface ProductsPageProps {
@@ -61,7 +63,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {productsData.products.map((product) => (
+          {productsData.products.map((product: ProductCardProduct) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
