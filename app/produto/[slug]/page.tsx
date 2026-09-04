@@ -162,7 +162,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           {/* Botões de Ação */}
           <div className="space-y-3 pt-4 border-t border-gray-100">
             <a
-              href={`/go/${product.id}`}
+              href={product.affiliateUrl || `/go/${product.id}`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-base py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 hover:shadow-xl transition-all"
