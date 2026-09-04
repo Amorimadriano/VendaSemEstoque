@@ -56,7 +56,7 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
   const optimizedDescription = optimizeDescription(product);
 
   const { data: currentProduct } = await supabase.from('products').select('id').eq('external_product_id', product.externalProductId).maybeSingle();
-  const productData = {
+    const productData = {
       id: currentProduct?.id || crypto.randomUUID(),
       name: optimizedTitle,
       description: optimizedDescription,
@@ -78,9 +78,9 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
       external_product_id: product.externalProductId,
       original_url: product.originalUrl,
       affiliate_url: affiliateUrl,
-      last_synced_at: new Date().toISOString(),
+      last_synced_at: now,
       updated_at: now,
-      created_at: now,
+      ...(currentProduct ? {} : { created_at: now }),
       is_best_seller: (product.salesCount || 0) >= 1000,
       is_trending: ranking >= 35,
       status: 'ACTIVE',
@@ -139,7 +139,7 @@ export async function runProductDiscovery() {
     if (!marketplace) continue;
     const { data: existing, error: existingError } = await supabase.from('products').select('id,external_product_id').eq('marketplace_id', marketplace.id).eq('status', 'ACTIVE');
     if (existingError) throw existingError;
-    for (const product of existing) {
+    for (const product of existing || []) {
       if (!discovered.has(`${marketplaceSlug}:${product.external_product_id}`)) {
         const available = await integration.getAvailability(product.external_product_id);
         if (!available) {
