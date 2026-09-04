@@ -30,10 +30,14 @@ jobs:
           MERCADOLIVRE_TOOL_ID: ${{ secrets.MERCADOLIVRE_TOOL_ID }}
           MERCADOLIVRE_ACCESS_TOKEN: ${{ secrets.MERCADOLIVRE_ACCESS_TOKEN }}
           MERCADOLIVRE_REFRESH_TOKEN: ${{ secrets.MERCADOLIVRE_REFRESH_TOKEN }}
+          ALIEXPRESS_APP_KEY: ${{ secrets.ALIEXPRESS_APP_KEY }}
+          ALIEXPRESS_APP_SECRET: ${{ secrets.ALIEXPRESS_APP_SECRET }}
+          ALIEXPRESS_TRACKING_ID: ${{ secrets.ALIEXPRESS_TRACKING_ID }}
           MERCADOLIVRE_COMMISSION_PERCENTAGE: ${{ vars.MERCADOLIVRE_COMMISSION_PERCENTAGE || '10' }}
           PRODUCT_SEARCHES: ${{ vars.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa' }}
           PRODUCT_MIN_PRICE: ${{ vars.PRODUCT_MIN_PRICE || '30' }}
           PRODUCT_MAX_PRICE: ${{ vars.PRODUCT_MAX_PRICE || '5000' }}
+          MARKETPLACES_TO_SYNC: ${{ vars.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress' }}
         run: |
           test -n "$MERCADOLIVRE_ACCESS_TOKEN" || test -n "$MERCADOLIVRE_REFRESH_TOKEN" || (echo "Missing Mercado Livre OAuth secret" && exit 1)
           npm run products:discover

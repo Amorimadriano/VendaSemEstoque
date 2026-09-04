@@ -8,6 +8,7 @@ const MIN_REVIEWS = Number(process.env.PRODUCT_MIN_REVIEWS || 20);
 const DEFAULT_COMMISSION = Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10);
 const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 30);
 const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 5000);
+const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
 
 function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
@@ -34,11 +35,12 @@ function calculateRanking(product: ExternalProduct, commissionPercentage: number
   return Math.round((sales * 0.55 + discount * 0.25 + margin * 0.2) * 100) / 100;
 }
 
-async function upsertProduct(product: ExternalProduct) {
+async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) {
+  const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : 'Mercado Livre';
   const marketplace = await prisma.marketplace.upsert({
-    where: { slug: 'mercadolivre' },
+    where: { slug: marketplaceSlug },
     update: {},
-    create: { name: 'Mercado Livre', slug: 'mercadolivre', affiliateStatus: 'ACTIVE', apiStatus: 'ACTIVE' },
+    create: { name: marketplaceName, slug: marketplaceSlug, affiliateStatus: 'ACTIVE', apiStatus: 'ACTIVE' },
   });
 
   const categorySlug = toSlug(product.categoryName || 'ofertas');
@@ -48,7 +50,7 @@ async function upsertProduct(product: ExternalProduct) {
     create: { name: product.categoryName || 'Ofertas', slug: categorySlug },
   });
 
-  const affiliateUrl = await getMarketplaceIntegration('mercadolivre').createAffiliateLink(product.originalUrl, product.externalProductId);
+  const affiliateUrl = await getMarketplaceIntegration(marketplaceSlug).createAffiliateLink(product.originalUrl, product.externalProductId);
   const slug = `${toSlug(product.name)}-${product.externalProductId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.slice(0, 190);
   const commissionPercentage = product.commissionPercentage || DEFAULT_COMMISSION;
   const ranking = calculateRanking(product, commissionPercentage);
@@ -120,27 +122,25 @@ async function upsertProduct(product: ExternalProduct) {
 }
 
 export async function runProductDiscovery() {
-  if (!process.env.MERCADOLIVRE_ACCESS_TOKEN && !process.env.MERCADOLIVRE_REFRESH_TOKEN) {
-    throw new Error('Mercado Livre OAuth não configurado: cadastre MERCADOLIVRE_ACCESS_TOKEN ou MERCADOLIVRE_REFRESH_TOKEN nos GitHub Actions Secrets.');
-  }
-
-  const integration = getMarketplaceIntegration('mercadolivre');
   const discovered = new Map<string, ExternalProduct>();
 
-  for (const search of SEARCHES) {
-    try {
-      const products = await integration.getProducts(search, undefined, 20);
-      for (const product of products) {
-        if (isWorthPublishing(product)) discovered.set(product.externalProductId, product);
+  for (const marketplaceSlug of MARKETPLACES) {
+    const integration = getMarketplaceIntegration(marketplaceSlug);
+    for (const search of SEARCHES) {
+      try {
+        const products = await integration.getProducts(search, undefined, 20);
+        for (const product of products) {
+          if (isWorthPublishing(product)) discovered.set(`${marketplaceSlug}:${product.externalProductId}`, product);
+        }
+      } catch (error) {
+        console.warn(`Search failed for ${marketplaceSlug}/${search}:`, error);
       }
-    } catch (error) {
-      console.warn(`Search failed for "${search}":`, error);
     }
   }
 
   let published = 0;
-  for (const product of discovered.values()) {
-    await upsertProduct(product);
+  for (const [key, product] of discovered.entries()) {
+    await upsertProduct(product, key.split(':')[0]);
     published += 1;
   }
 
@@ -148,14 +148,16 @@ export async function runProductDiscovery() {
     throw new Error('Nenhum produto foi encontrado. Verifique MERCADOLIVRE_ACCESS_TOKEN/MERCADOLIVRE_REFRESH_TOKEN e os limites da API do Mercado Livre.');
   }
 
-  const marketplace = await prisma.marketplace.findUnique({ where: { slug: 'mercadolivre' } });
-  if (marketplace) {
+  for (const marketplaceSlug of MARKETPLACES) {
+    const integration = getMarketplaceIntegration(marketplaceSlug);
+    const marketplace = await prisma.marketplace.findUnique({ where: { slug: marketplaceSlug } });
+    if (!marketplace) continue;
     const existing = await prisma.product.findMany({
       where: { marketplaceId: marketplace.id, status: 'ACTIVE' },
       select: { id: true, externalProductId: true },
     });
     for (const product of existing) {
-      if (!discovered.has(product.externalProductId)) {
+      if (!discovered.has(`${marketplaceSlug}:${product.externalProductId}`)) {
         const available = await integration.getAvailability(product.externalProductId);
         if (!available) {
           await prisma.product.update({ where: { id: product.id }, data: { status: 'OUT_OF_STOCK', lastSyncedAt: new Date() } });
@@ -164,7 +166,11 @@ export async function runProductDiscovery() {
     }
   }
 
-  return { searched: SEARCHES.length, discovered: discovered.size, published, rankingUpdated: published };
+  if (discovered.size === 0) {
+    throw new Error('Nenhum produto foi encontrado nos marketplaces configurados. Verifique credenciais e APIs.');
+  }
+
+  return { marketplaces: MARKETPLACES, searched: SEARCHES.length, discovered: discovered.size, published, rankingUpdated: published };
 }
 
 if (require.main === module) {
