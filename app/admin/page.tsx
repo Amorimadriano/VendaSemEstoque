@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Trash2,
 } from 'lucide-react';
+import MarketingAgent from '@/components/MarketingAgent';
 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
@@ -35,11 +36,24 @@ export default function AdminDashboardPage() {
     brand: '',
     imageUrl: '',
     price: '',
+    cost: '',
+    platformFees: '',
+    shippingCost: '',
+    marketingCost: '',
+    otherCosts: '',
     oldPrice: '',
     commissionPercentage: '',
     externalProductId: '',
     originalUrl: '',
     affiliateUrl: '',
+    productType: '',
+    supplierInfo: '',
+    targetAudience: '',
+    keyBenefits: '',
+    keyObjections: '',
+    competitionNotes: '',
+    deliveryTime: '',
+    returnPolicy: '',
   });
 
   const fetchData = async () => {
@@ -93,6 +107,11 @@ export default function AdminDashboardPage() {
         body: JSON.stringify({
           ...newProduct,
           price: parseFloat(newProduct.price),
+          cost: newProduct.cost ? parseFloat(newProduct.cost) : null,
+          platformFees: newProduct.platformFees ? parseFloat(newProduct.platformFees) : null,
+          shippingCost: newProduct.shippingCost ? parseFloat(newProduct.shippingCost) : null,
+          marketingCost: newProduct.marketingCost ? parseFloat(newProduct.marketingCost) : null,
+          otherCosts: newProduct.otherCosts ? parseFloat(newProduct.otherCosts) : null,
           oldPrice: newProduct.oldPrice ? parseFloat(newProduct.oldPrice) : null,
           commissionPercentage: parseFloat(newProduct.commissionPercentage),
           categoryId: newProduct.categoryId || categories[0]?.id,
@@ -110,11 +129,24 @@ export default function AdminDashboardPage() {
           brand: '',
           imageUrl: '',
           price: '',
+          cost: '',
+          platformFees: '',
+          shippingCost: '',
+          marketingCost: '',
+          otherCosts: '',
           oldPrice: '',
           commissionPercentage: '',
           externalProductId: '',
           originalUrl: '',
           affiliateUrl: '',
+          productType: '',
+          supplierInfo: '',
+          targetAudience: '',
+          keyBenefits: '',
+          keyObjections: '',
+          competitionNotes: '',
+          deliveryTime: '',
+          returnPolicy: '',
         });
         fetchData();
       }
@@ -233,6 +265,8 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      <MarketingAgent products={products} summary={summary} />
+
       {/* Tabela de Produtos */}
       <section className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-gray-100 flex items-center justify-between">
@@ -341,6 +375,16 @@ export default function AdminDashboardPage() {
               </div>
 
               <div>
+                <label className="block font-semibold text-gray-700 mb-1">Tipo de Produto</label>
+                <select value={newProduct.productType} onChange={(e) => setNewProduct({ ...newProduct, productType: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2">
+                  <option value="">Não informado</option>
+                  <option value="PHYSICAL">Produto físico</option>
+                  <option value="DIGITAL">Produto digital</option>
+                  <option value="AFFILIATE">Afiliado</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block font-semibold text-gray-700 mb-1">Plataforma Parceira</label>
                 <select
                   value={newProduct.marketplaceId}
@@ -363,6 +407,31 @@ export default function AdminDashboardPage() {
                   onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
                   className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Custo (R$)</label>
+                <input type="number" step="0.01" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Taxas da Plataforma (R$)</label>
+                <input type="number" step="0.01" value={newProduct.platformFees} onChange={(e) => setNewProduct({ ...newProduct, platformFees: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Custo de Frete (R$)</label>
+                <input type="number" step="0.01" value={newProduct.shippingCost} onChange={(e) => setNewProduct({ ...newProduct, shippingCost: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Custo de Marketing (R$)</label>
+                <input type="number" step="0.01" value={newProduct.marketingCost} onChange={(e) => setNewProduct({ ...newProduct, marketingCost: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Outros Custos (R$)</label>
+                <input type="number" step="0.01" value={newProduct.otherCosts} onChange={(e) => setNewProduct({ ...newProduct, otherCosts: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
               </div>
 
               <div>
@@ -397,6 +466,41 @@ export default function AdminDashboardPage() {
                   onChange={(e) => setNewProduct({ ...newProduct, affiliateUrl: e.target.value })}
                   className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Fornecedor</label>
+                <input value={newProduct.supplierInfo} onChange={(e) => setNewProduct({ ...newProduct, supplierInfo: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Prazo de Entrega</label>
+                <input value={newProduct.deliveryTime} onChange={(e) => setNewProduct({ ...newProduct, deliveryTime: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Público</label>
+                <textarea rows={2} value={newProduct.targetAudience} onChange={(e) => setNewProduct({ ...newProduct, targetAudience: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Principais Benefícios</label>
+                <textarea rows={2} value={newProduct.keyBenefits} onChange={(e) => setNewProduct({ ...newProduct, keyBenefits: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Principais Objeções</label>
+                <textarea rows={2} value={newProduct.keyObjections} onChange={(e) => setNewProduct({ ...newProduct, keyObjections: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Concorrência</label>
+                <textarea rows={2} value={newProduct.competitionNotes} onChange={(e) => setNewProduct({ ...newProduct, competitionNotes: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block font-semibold text-gray-700 mb-1">Política de Devolução</label>
+                <textarea rows={2} value={newProduct.returnPolicy} onChange={(e) => setNewProduct({ ...newProduct, returnPolicy: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" />
               </div>
 
               <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-gray-200">

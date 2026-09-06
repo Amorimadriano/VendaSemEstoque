@@ -146,11 +146,17 @@ model Product {
   categoryId           String        @map("category_id")
   supplierId           String?       @map("supplier_id")
   marketplaceId        String        @map("marketplace_id")
+  productType          String?       @map("product_type")
   brand                String?
   imageUrl             String        @map("image_url")
   images               String        @default("[]") // JSON String array
   videoUrl             String?       @map("video_url")
   price                Float
+  cost                 Float?
+  platformFees         Float?        @map("platform_fees")
+  shippingCost         Float?        @map("shipping_cost")
+  marketingCost        Float?        @map("marketing_cost")
+  otherCosts           Float?        @map("other_costs")
   oldPrice             Float?        @map("old_price")
   discountPercentage   Float?        @map("discount_percentage")
   rating               Float         @default(0)
@@ -163,6 +169,13 @@ model Product {
   externalProductId    String        @map("external_product_id")
   originalUrl          String        @map("original_url")
   affiliateUrl         String        @map("affiliate_url")
+  supplierInfo         String?       @map("supplier_info")
+  targetAudience       String?       @map("target_audience")
+  keyBenefits          String?       @map("key_benefits")
+  keyObjections        String?       @map("key_objections")
+  competitionNotes     String?       @map("competition_notes")
+  deliveryTime         String?       @map("delivery_time")
+  returnPolicy         String?       @map("return_policy")
   isBestSeller         Boolean       @default(false) @map("is_best_seller")
   isTrending           Boolean       @default(false) @map("is_trending")
   status               ProductStatus @default(ACTIVE)
