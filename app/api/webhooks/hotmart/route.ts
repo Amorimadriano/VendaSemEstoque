@@ -67,10 +67,7 @@ export async function POST(request: NextRequest) {
   const status = isApproved ? 'APPROVED' : 'CANCELLED';
   const price = purchase?.price as Record<string, unknown> | undefined;
   const saleValue = numericValue(price?.value);
-  const affiliates = eventData?.affiliates as Array<Record<string, unknown>> | undefined;
-  const commissions = eventData?.commissions as Array<Record<string, unknown>> | undefined;
-  const isOwnAffiliate = Boolean(process.env.HOTMART_AFFILIATE_CODE) && affiliates?.some((affiliate) => affiliate.affiliate_code === process.env.HOTMART_AFFILIATE_CODE);
-  const commissionValue = isOwnAffiliate ? (commissions || []).reduce((total, commission) => total + numericValue(commission.value), 0) : 0;
+  const commissionValue = 0;
 
   let conversionId = existingConversion?.id;
   if (conversionId) {
@@ -80,15 +77,6 @@ export async function POST(request: NextRequest) {
     conversionId = crypto.randomUUID();
     const { error: conversionError } = await supabase.from('conversions').insert({ id: conversionId, product_id: product.id, marketplace_id: hotmart.id, order_external_id: orderId, sale_value: saleValue, commission_value: commissionValue, status });
     if (conversionError) return NextResponse.json({ error: conversionError.message }, { status: 500 });
-  }
-
-  if (conversionId) {
-    const { data: existingCommission } = await supabase.from('commissions').select('id').eq('conversion_id', conversionId).maybeSingle();
-    const commissionData = { amount: commissionValue, status, updated_at: new Date().toISOString() };
-    const commissionError = existingCommission
-      ? (await supabase.from('commissions').update(commissionData).eq('id', existingCommission.id)).error
-      : (await supabase.from('commissions').insert({ id: crypto.randomUUID(), conversion_id: conversionId, ...commissionData, created_at: new Date().toISOString() })).error;
-    if (commissionError) return NextResponse.json({ error: commissionError.message }, { status: 500 });
   }
 
   await supabase.from('hotmart_events').update({ processed_at: new Date().toISOString() }).eq('event_id', eventId);
