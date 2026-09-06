@@ -13,6 +13,9 @@ const whatsappUrl = 'https://wa.me/5511976923833?text=Olá!%20Preciso%20de%20aju
 function getReply(question: string) {
   const normalizedQuestion = question.toLowerCase();
 
+  if (/(admin|painel|cadastr|adicionar|novo produto|incluir produto)/.test(normalizedQuestion)) {
+    return 'Para cadastrar um produto, acesse o Painel Admin pelo menu superior e clique em "Novo Produto Manual". Preencha os dados do produto e confirme o cadastro.';
+  }
   if (/(comprar|produto|oferta|link|loja)/.test(normalizedQuestion)) {
     return 'Abra o produto desejado e use o botão de compra. Você será direcionado para a loja parceira, onde conclui o pedido com segurança.';
   }
@@ -21,9 +24,6 @@ function getReply(question: string) {
   }
   if (/(entrega|pedido|rastre|devolu|troca)/.test(normalizedQuestion)) {
     return 'A entrega, rastreamento, troca e devolução são tratados diretamente pela loja parceira onde o pedido foi realizado.';
-  }
-  if (/(admin|painel|cadastr|adicionar)/.test(normalizedQuestion)) {
-    return 'No Painel Admin você pode consultar métricas e cadastrar ou excluir produtos. O painel está disponível pelo menu superior.';
   }
   if (/(afiliad|comiss)/.test(normalizedQuestion)) {
     return 'A VendaSemEstoque utiliza links de afiliados. A comissão é informada pela loja parceira e não altera o valor pago por você.';
