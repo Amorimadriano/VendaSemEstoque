@@ -10,16 +10,38 @@ type MercadoLivreOrder = {
   }>;
 };
 
-async function getAccessToken() {
-  const accessToken = process.env.MERCADOLIVRE_ACCESS_TOKEN;
-  if (!accessToken) throw new Error('MERCADOLIVRE_ACCESS_TOKEN não configurado.');
-  return accessToken;
+async function refreshAccessToken() {
+  const refreshToken = process.env.MERCADOLIVRE_REFRESH_TOKEN;
+  const clientId = process.env.MERCADOLIVRE_CLIENT_ID;
+  const clientSecret = process.env.MERCADOLIVRE_CLIENT_SECRET;
+  if (!refreshToken || !clientId || !clientSecret) throw new Error('OAuth Mercado Livre não configurado para renovar o token.');
+
+  const response = await fetch('https://api.mercadolibre.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    body: new URLSearchParams({ grant_type: 'refresh_token', client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken }),
+  });
+  if (!response.ok) throw new Error(`Mercado Livre OAuth token refresh retornou ${response.status}.`);
+  const data = await response.json() as { access_token?: string; refresh_token?: string };
+  if (!data.access_token) throw new Error('Mercado Livre não retornou access token renovado.');
+  process.env.MERCADOLIVRE_ACCESS_TOKEN = data.access_token;
+  if (data.refresh_token) process.env.MERCADOLIVRE_REFRESH_TOKEN = data.refresh_token;
+  return data.access_token;
+}
+
+async function requestWithToken(url: string) {
+  let accessToken = process.env.MERCADOLIVRE_ACCESS_TOKEN;
+  if (!accessToken) accessToken = await refreshAccessToken();
+  let response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } });
+  if (response.status === 401 && process.env.MERCADOLIVRE_REFRESH_TOKEN) {
+    accessToken = await refreshAccessToken();
+    response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } });
+  }
+  return response;
 }
 
 export async function syncMercadoLivreSales(limit = 50) {
-  const accessToken = await getAccessToken();
-  const headers = { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' };
-  const profileResponse = await fetch('https://api.mercadolibre.com/users/me', { headers });
+  const profileResponse = await requestWithToken('https://api.mercadolibre.com/users/me');
   if (!profileResponse.ok) throw new Error(`Mercado Livre users/me retornou ${profileResponse.status}. Renove o OAuth token.`);
   const profile = await profileResponse.json() as { id?: number };
   if (!profile.id) throw new Error('Mercado Livre não retornou o identificador do vendedor.');
@@ -28,7 +50,7 @@ export async function syncMercadoLivreSales(limit = 50) {
   ordersUrl.searchParams.set('seller', String(profile.id));
   ordersUrl.searchParams.set('sort', 'date_desc');
   ordersUrl.searchParams.set('limit', String(Math.min(limit, 50)));
-  const ordersResponse = await fetch(ordersUrl, { headers });
+  const ordersResponse = await requestWithToken(ordersUrl.toString());
   if (!ordersResponse.ok) throw new Error(`Mercado Livre orders/search retornou ${ordersResponse.status}.`);
   const orderPayload = await ordersResponse.json() as { results?: MercadoLivreOrder[] };
   const orders = orderPayload.results || [];
