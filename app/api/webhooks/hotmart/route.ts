@@ -12,7 +12,14 @@ export async function POST(request: NextRequest) {
   const eventData = payload?.data as Record<string, unknown> | undefined;
   const purchase = eventData?.purchase as Record<string, unknown> | undefined;
   const expectedToken = process.env.HOTMART_WEBHOOK_TOKEN;
-  const receivedToken = String(payload?.hottok || eventData?.hottok || request.headers.get('x-hotmart-hottok') || '');
+  const receivedToken = String(
+    payload?.hottok ||
+    eventData?.hottok ||
+    request.headers.get('x-hotmart-hottok') ||
+    request.headers.get('hottok') ||
+    request.nextUrl.searchParams.get('hottok') ||
+    ''
+  );
 
   if (!expectedToken || receivedToken !== expectedToken) {
     return NextResponse.json({ error: 'Webhook não autorizado.' }, { status: 401 });
