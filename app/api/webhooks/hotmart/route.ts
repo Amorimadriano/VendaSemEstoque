@@ -21,8 +21,12 @@ export async function POST(request: NextRequest) {
     ''
   );
 
-  if (!expectedToken || receivedToken !== expectedToken) {
-    return NextResponse.json({ error: 'Webhook não autorizado.' }, { status: 401 });
+  if (!expectedToken) {
+    return NextResponse.json({ error: 'Webhook não configurado.', reason: 'HOTMART_WEBHOOK_TOKEN ausente no ambiente de produção.' }, { status: 503 });
+  }
+
+  if (receivedToken !== expectedToken) {
+    return NextResponse.json({ error: 'Webhook não autorizado.', reason: 'Hottok ausente ou diferente da Secret de produção.' }, { status: 401 });
   }
 
   const eventId = String(payload?.id || payload?.event_id || payload?.transaction || eventData?.id || eventData?.transaction || purchase?.transaction || `hotmart-${crypto.randomUUID()}`);
