@@ -37,9 +37,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const input = z.object({ id: z.string().uuid(), status: z.enum(['DRAFT', 'APPROVED']) }).safeParse(await request.json());
+  const input = z.object({ id: z.string().uuid(), status: z.enum(['DRAFT', 'APPROVED', 'SCHEDULED']), scheduledAt: z.string().datetime().optional() }).safeParse(await request.json());
   if (!input.success) return NextResponse.json({ error: 'Atualização inválida.' }, { status: 400 });
-  const { data, error } = await getSupabase().from('marketing_content').update({ status: input.data.status, updated_at: new Date().toISOString() }).eq('id', input.data.id).select('*, product:products(name)').single();
+  if (input.data.status === 'SCHEDULED' && !input.data.scheduledAt) return NextResponse.json({ error: 'Informe data e hora para agendar.' }, { status: 400 });
+  const { data, error } = await getSupabase().from('marketing_content').update({ status: input.data.status, scheduled_at: input.data.scheduledAt || null, updated_at: new Date().toISOString() }).eq('id', input.data.id).select('*, product:products(name)').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
