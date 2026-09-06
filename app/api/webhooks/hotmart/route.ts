@@ -3,6 +3,10 @@ import { getSupabase } from '@/lib/supabase';
 
 export const runtime = 'edge';
 
+export async function GET() {
+  return NextResponse.json({ status: 'ready' });
+}
+
 export async function POST(request: NextRequest) {
   const payload = await request.json().catch(() => null) as Record<string, unknown> | null;
   const eventData = payload?.data as Record<string, unknown> | undefined;
