@@ -107,6 +107,12 @@ async function main() {
     create: { name: 'Informática', slug: 'informatica', description: 'Notebooks, monitores e periféricos', icon: 'Laptop' },
   });
 
+  await prisma.category.upsert({
+    where: { slug: 'beleza-e-higiene' },
+    update: {},
+    create: { name: 'Beleza e Higiene', slug: 'beleza-e-higiene', description: 'Produtos de cuidados pessoais, beleza e higiene', icon: 'Sparkles' },
+  });
+
   console.log('📂 Categorias criadas.');
 
   // 5. Criar Produtos de Exemplo
