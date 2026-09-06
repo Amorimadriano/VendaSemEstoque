@@ -18,6 +18,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import MarketingAgent from '@/components/MarketingAgent';
+import ContentApprovalQueue from '@/components/ContentApprovalQueue';
 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
@@ -265,6 +266,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      <ContentApprovalQueue products={products} />
       <MarketingAgent products={products} summary={summary} />
 
       {/* Tabela de Produtos */}
