@@ -19,26 +19,26 @@ export function getCommerceHubStatus(): ConnectorStatus[] {
     {
       channel: 'mercadolivre',
       ready: hasValues(process.env.MERCADOLIVRE_ACCESS_TOKEN || process.env.MERCADOLIVRE_REFRESH_TOKEN, process.env.MERCADOLIVRE_CLIENT_ID, process.env.MERCADOLIVRE_CLIENT_SECRET),
-      capabilities: ['buscar_produtos', 'consultar_preco', 'consultar_estoque', 'consultar_vendas'],
-      message: 'Use credenciais OAuth oficiais do Mercado Livre no ambiente do servidor.',
+      capabilities: ['buscar_produtos', 'consultar_preco', 'consultar_estoque', 'consultar_metricas'],
+      message: 'Modo afiliado: catálogo, preço e disponibilidade estão disponíveis. Conversões exigem o relatório oficial do programa de afiliados.',
     },
     {
       channel: 'shopee',
       ready: false,
       capabilities: [],
-      message: 'Conector Shopee usa dados simulados e permanece desativado até haver credenciais e permissões oficiais de vendedor ou afiliado.',
+      message: 'Modo afiliado: o conector Shopee usa dados simulados e permanece desativado até haver credenciais e permissões oficiais do programa de afiliados.',
     },
     {
       channel: 'aliexpress',
       ready: hasValues(process.env.ALIEXPRESS_APP_KEY, process.env.ALIEXPRESS_APP_SECRET, process.env.ALIEXPRESS_TRACKING_ID),
       capabilities: ['buscar_produtos', 'consultar_preco', 'consultar_estoque'],
-      message: 'Conector de afiliados AliExpress: pesquisa produtos, preços e disponibilidade; vendas e comissões exigem a API de relatórios autorizada.',
+      message: 'Modo afiliado: pesquisa produtos, preços e disponibilidade; vendas e comissões exigem a API de relatórios autorizada.',
     },
     {
       channel: 'hotmart',
-      ready: false,
+      ready: Boolean(process.env.HOTMART_WEBHOOK_TOKEN),
       capabilities: ['consultar_vendas', 'consultar_metricas', 'receber_webhooks'],
-      message: 'Configure credenciais Hotmart e webhooks oficiais para ativar este conector.',
+      message: 'Modo produtor: vendas, reembolsos e cancelamentos chegam pelo webhook oficial.',
     },
     {
       channel: 'instagram',

@@ -1,6 +1,6 @@
 export default {
   async scheduled(_controller, env) {
-    const endpoints = ['discover', 'mercadolivre-sales'];
+    const endpoints = ['discover'];
     for (const endpoint of endpoints) {
       const response = await fetch(`${env.APP_BASE_URL}/api/admin/automation/${endpoint}`, {
         method: 'POST',

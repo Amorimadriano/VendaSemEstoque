@@ -41,6 +41,9 @@ async function requestWithToken(url: string) {
 }
 
 export async function syncMercadoLivreSales(limit = 50) {
+  if ((process.env.MERCADOLIVRE_INTEGRATION_MODE || 'affiliate') !== 'seller') {
+    throw new Error('Sincronização de pedidos é exclusiva para contas de vendedor. Em modo afiliado, use apenas relatórios oficiais de conversões do programa de afiliados.');
+  }
   const profileResponse = await requestWithToken('https://api.mercadolibre.com/users/me');
   if (!profileResponse.ok) throw new Error(`Mercado Livre users/me retornou ${profileResponse.status}. Renove o OAuth token.`);
   const profile = await profileResponse.json() as { id?: number };
