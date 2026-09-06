@@ -351,6 +351,16 @@ export default function AdminDashboardPage() {
               </div>
 
               <div className="md:col-span-2">
+                <label className="block font-semibold text-gray-700 mb-1">ID Externo do Produto</label>
+                <input
+                  value={newProduct.externalProductId}
+                  onChange={(e) => setNewProduct({ ...newProduct, externalProductId: e.target.value })}
+                  placeholder="Para Hotmart, use o ucode do produto"
+                  className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2"
+                />
+              </div>
+
+              <div className="md:col-span-2">
                 <label className="block font-semibold text-gray-700 mb-1">Descrição Detalhada</label>
                 <textarea
                   rows={3}
