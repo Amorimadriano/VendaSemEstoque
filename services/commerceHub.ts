@@ -24,15 +24,15 @@ export function getCommerceHubStatus(): ConnectorStatus[] {
     },
     {
       channel: 'shopee',
-      ready: hasValues(process.env.SHOPEE_APP_ID, process.env.SHOPEE_SECRET) && process.env.SHOPEE_SECRET !== 'seu_secret',
-      capabilities: ['buscar_produtos', 'consultar_preco', 'consultar_estoque'],
-      message: 'Conector aguarda credenciais e permissões oficiais da modalidade Shopee escolhida.',
+      ready: false,
+      capabilities: [],
+      message: 'Conector Shopee usa dados simulados e permanece desativado até haver credenciais e permissões oficiais de vendedor ou afiliado.',
     },
     {
       channel: 'aliexpress',
       ready: hasValues(process.env.ALIEXPRESS_APP_KEY, process.env.ALIEXPRESS_APP_SECRET, process.env.ALIEXPRESS_TRACKING_ID),
       capabilities: ['buscar_produtos', 'consultar_preco', 'consultar_estoque'],
-      message: 'Conector de afiliados AliExpress disponível com credenciais oficiais.',
+      message: 'Conector de afiliados AliExpress: pesquisa produtos, preços e disponibilidade; vendas e comissões exigem a API de relatórios autorizada.',
     },
     {
       channel: 'hotmart',
