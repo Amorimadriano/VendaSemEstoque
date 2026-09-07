@@ -6,12 +6,15 @@ export async function publishApprovedFacebookContent(contentId: string) {
   if (!token || !pageId) throw new Error('META_ACCESS_TOKEN e META_FACEBOOK_PAGE_ID devem estar configurados como Secrets.');
 
   const supabase = getSupabase();
-  const { data: content, error } = await supabase.from('marketing_content').select('*, product:products(image_url)').eq('id', contentId).eq('channel', 'facebook').eq('status', 'APPROVED').maybeSingle();
+  const { data: content, error } = await supabase.from('marketing_content').select('*, product:products(id,image_url)').eq('id', contentId).eq('channel', 'facebook').eq('status', 'APPROVED').maybeSingle();
   if (error) throw error;
   if (!content) throw new Error('Conteúdo aprovado do Facebook não encontrado.');
 
-  const message = `${content.hook}\n\n${content.caption}\n\n${content.cta}`;
-  const imageUrl = (content.product as { image_url?: string } | null)?.image_url;
+  const product = content.product as { id?: string; image_url?: string } | null;
+  const siteUrl = (process.env.SITE_URL || 'https://venda-sem-estoque.pages.dev').replace(/\/$/, '');
+  const partnerLink = product?.id ? `${siteUrl}/go/${product.id}?utm_source=facebook&utm_medium=organic` : siteUrl;
+  const message = `${content.hook}\n\n${content.caption}\n\n${content.cta}\n${partnerLink}`;
+  const imageUrl = product?.image_url;
   const endpoint = imageUrl ? 'photos' : 'feed';
   const body = new URLSearchParams({ message, access_token: token });
   if (imageUrl) body.set('url', imageUrl);
