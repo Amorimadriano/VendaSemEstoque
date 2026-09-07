@@ -1,8 +1,8 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Flame, Trophy, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { ImageOff, Star, Flame, Trophy, ExternalLink } from 'lucide-react';
 
 interface ProductCardProps {
   product: {
@@ -29,6 +29,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -47,6 +48,9 @@ export default function ProductCard({ product }: ProductCardProps) {
         currency: 'BRL',
       }).format(product.commissionValue)
     : null;
+  const imageSource = product.marketplace?.slug === 'mercadolivre' && product.imageUrl.includes('mlstatic.com')
+    ? `/api/images/mercadolivre?src=${encodeURIComponent(product.imageUrl)}`
+    : product.imageUrl;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
@@ -82,12 +86,18 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         {/* Imagem do Produto */}
         <Link href={`/produto/${product.slug}`} className="w-full h-full flex items-center justify-center pt-6">
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            className="h-36 object-contain group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-          />
+          {imageFailed ? (
+            <div className="flex h-36 w-full flex-col items-center justify-center gap-2 text-gray-400"><ImageOff className="h-8 w-8" /><span className="text-xs">Imagem indisponível</span></div>
+          ) : (
+            <img
+              src={imageSource}
+              alt={product.name}
+              className="h-36 object-contain group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={() => setImageFailed(true)}
+            />
+          )}
         </Link>
       </div>
 
