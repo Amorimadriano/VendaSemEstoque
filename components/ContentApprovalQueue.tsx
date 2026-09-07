@@ -1,13 +1,14 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { CheckCircle2, Send } from 'lucide-react';
+import { CheckCircle2, RefreshCw, Send } from 'lucide-react';
 
 type Product = { id: string; name: string };
 type Content = { id: string; channel: string; content_type: string; hook: string; caption: string; cta: string; status: string; product?: { name: string } };
 
 export default function ContentApprovalQueue({ products }: { products: Product[] }) {
   const [contents, setContents] = useState<Content[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [form, setForm] = useState({ productId: products[0]?.id || '', channel: 'instagram', contentType: 'REEL', hook: '', caption: '', script: '', cta: 'Confira os detalhes na loja parceira.' });
 
   useEffect(() => { fetch('/api/admin/content').then((response) => response.ok ? response.json() : []).then(setContents).catch(() => setContents([])); }, []);
@@ -34,9 +35,22 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
     setContents((current) => current.map((item) => item.id === content.id ? { ...item, status: 'PUBLISHED' } : item));
   }
 
+  async function generateDrafts() {
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/admin/content/generate', { method: 'POST' });
+      if (!response.ok) return;
+      const draftsResponse = await fetch('/api/admin/content');
+      if (draftsResponse.ok) setContents(await draftsResponse.json());
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return <section className="rounded-lg border border-gray-200 bg-white p-5">
-    <h2 className="text-base font-bold text-gray-900">Fila de conteúdo para aprovação</h2>
-    <p className="mt-1 text-xs text-gray-500">Prepare peças para Instagram e Facebook. Posts aprovados do Facebook podem ser publicados manualmente pela integração oficial.</p>
+    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-base font-bold text-gray-900">Fila de conteúdo para aprovação</h2>
+    <p className="mt-1 text-xs text-gray-500">O agente cria rascunhos diariamente. Revise e aprove antes de publicar.</p></div>
+    <button type="button" onClick={generateDrafts} disabled={isGenerating} className="flex w-fit items-center gap-2 rounded-md border border-blue-600 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-60"><RefreshCw className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />{isGenerating ? 'Gerando...' : 'Gerar rascunhos agora'}</button></div>
     <form onSubmit={createContent} className="mt-4 grid gap-3 text-xs md:grid-cols-2">
       <select required value={form.productId} onChange={(event) => setForm({ ...form, productId: event.target.value })} className="rounded-md border border-gray-300 p-2">{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select>
       <div className="grid grid-cols-2 gap-3"><select value={form.channel} onChange={(event) => setForm({ ...form, channel: event.target.value })} className="rounded-md border border-gray-300 p-2"><option value="instagram">Instagram</option><option value="facebook">Facebook</option></select><select value={form.contentType} onChange={(event) => setForm({ ...form, contentType: event.target.value })} className="rounded-md border border-gray-300 p-2"><option value="REEL">Reel</option><option value="STORY">Story</option><option value="POST">Post</option><option value="CAROUSEL">Carrossel</option></select></div>

@@ -8,6 +8,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname.startsWith('/api/admin/automation/')) {
+    return NextResponse.next();
+  }
+
   if (pathname === '/api/products' && request.method === 'GET') {
     return NextResponse.next();
   }
