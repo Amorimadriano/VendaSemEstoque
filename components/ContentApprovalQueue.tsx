@@ -9,6 +9,7 @@ type Content = { id: string; channel: string; content_type: string; hook: string
 export default function ContentApprovalQueue({ products }: { products: Product[] }) {
   const [contents, setContents] = useState<Content[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [publishError, setPublishError] = useState('');
   const [form, setForm] = useState({ productId: products[0]?.id || '', channel: 'instagram', contentType: 'REEL', hook: '', caption: '', script: '', cta: 'Confira os detalhes na loja parceira.' });
 
   useEffect(() => { fetch('/api/admin/content').then((response) => response.ok ? response.json() : []).then(setContents).catch(() => setContents([])); }, []);
@@ -30,8 +31,13 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
   }
 
   async function publishToFacebook(content: Content) {
+    setPublishError('');
     const response = await fetch(`/api/admin/content/${content.id}/publish`, { method: 'POST' });
-    if (!response.ok) return;
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      setPublishError(result.error || 'Não foi possível publicar no Facebook.');
+      return;
+    }
     setContents((current) => current.map((item) => item.id === content.id ? { ...item, status: 'PUBLISHED' } : item));
   }
 
@@ -66,6 +72,7 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
       <textarea value={form.script} onChange={(event) => setForm({ ...form, script: event.target.value })} placeholder="Roteiro opcional" className="min-h-20 rounded-md border border-gray-300 p-2 md:col-span-2" />
       <button className="flex w-fit items-center gap-2 rounded-md bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700"><Send className="h-4 w-4" /> Salvar rascunho</button>
     </form>
+    {publishError && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{publishError}</p>}
     <div className="mt-5 space-y-3">{contents.map((content) => <div key={content.id} className="rounded-md border border-gray-200 p-3 text-xs"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{content.product?.name}</strong><span className="rounded-full bg-gray-100 px-2 py-0.5 font-bold">{content.channel} · {content.content_type} · {content.status}</span></div><p className="mt-2 font-semibold text-gray-800">{content.hook}</p><p className="mt-1 text-gray-600">{content.caption}</p><p className="mt-1 text-blue-700">CTA: {content.cta}</p>{content.status === 'DRAFT' && <button onClick={() => approve(content)} className="mt-3 flex items-center gap-1 text-emerald-700 hover:text-emerald-800"><CheckCircle2 className="h-4 w-4" /> Aprovar</button>}{content.status === 'APPROVED' && content.channel === 'facebook' && <div className="mt-3 flex gap-3"><button onClick={() => generateVideo(content)} className="flex items-center gap-1 text-violet-700 hover:text-violet-800"><Send className="h-4 w-4" /> Gerar vídeo</button><button onClick={() => publishToFacebook(content)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800"><Send className="h-4 w-4" /> Publicar no Facebook</button></div>}</div>)}{!contents.length && <p className="text-sm text-gray-500">Nenhum conteúdo preparado.</p>}</div>
   </section>;
 }
