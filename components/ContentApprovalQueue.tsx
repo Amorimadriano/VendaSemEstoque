@@ -38,10 +38,10 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
   async function generateDrafts() {
     setIsGenerating(true);
     try {
-      const response = await fetch('/api/admin/content/generate', { method: 'POST' });
+      const response = await fetch('/api/admin/content/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: form.productId, channel: form.channel, contentType: form.contentType }) });
       if (!response.ok) return;
-      const draftsResponse = await fetch('/api/admin/content');
-      if (draftsResponse.ok) setContents(await draftsResponse.json());
+      const content = await response.json();
+      setContents((current) => [content, ...current]);
     } finally {
       setIsGenerating(false);
     }

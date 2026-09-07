@@ -16,13 +16,13 @@ function scoreProduct(product: Product) {
   return (product.is_trending ? 20 : 0) + (product.is_best_seller ? 15 : 0) + Math.min(Number(product.sales_count || 0) / 100, 20) + Math.min(Number(product.commission_percentage || 0), 15) + (product.description ? 15 : 0) + (product.key_benefits ? 15 : 0);
 }
 
-function createDraft(product: Product, channel: 'instagram' | 'facebook') {
+function createDraft(product: Product, channel: 'instagram' | 'facebook', contentType?: string) {
   const benefit = product.key_benefits || 'detalhes verificados para ajudar na decisão de compra';
   const hook = `O que conferir antes de escolher ${product.name}?`;
   return {
     product_id: product.id,
     channel,
-    content_type: channel === 'instagram' ? 'REEL' : 'POST',
+    content_type: contentType || (channel === 'instagram' ? 'REEL' : 'POST'),
     hook,
     caption: `Pesquisando ${product.name}? Confira ${benefit}. Consulte condições, disponibilidade e informações atualizadas diretamente na ${product.marketplace?.name || 'loja parceira'} antes de comprar.`,
     script: `Gancho: ${hook}\nBenefício: ${benefit}.\nExplicação: apresente somente informações verificáveis na página oficial.\nCTA: confira os detalhes na loja parceira.`,
@@ -49,4 +49,15 @@ export async function generateContentDrafts() {
     }
   }
   return { candidates: candidates.length, draftsCreated: created };
+}
+
+export async function generateContentDraftForProduct(productId: string, channel: 'instagram' | 'facebook', contentType: string) {
+  const supabase = getSupabase();
+  const { data: product, error } = await supabase.from('products').select('id,name,description,key_benefits,is_trending,is_best_seller,sales_count,commission_percentage,marketplace:marketplaces(name)').eq('id', productId).eq('status', 'ACTIVE').maybeSingle();
+  if (error) throw error;
+  if (!product) throw new Error('Produto ativo não encontrado.');
+
+  const { data, error: insertError } = await supabase.from('marketing_content').insert({ id: crypto.randomUUID(), ...createDraft(product as Product, channel, contentType), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }).select('*, product:products(name)').single();
+  if (insertError) throw insertError;
+  return data;
 }
