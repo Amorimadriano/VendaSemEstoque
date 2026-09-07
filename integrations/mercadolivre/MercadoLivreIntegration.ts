@@ -173,6 +173,16 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
         if (![429, 500, 502, 503, 504].includes(response.status)) break;
         await new Promise((resolve) => setTimeout(resolve, attempt * 500));
       }
+
+      if (!response?.ok) {
+        const publicResponse = await fetch(search, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': headers['User-Agent'],
+          },
+        });
+        if (publicResponse.ok) response = publicResponse;
+      }
     } catch (e) {
       console.warn('Direct ML search error:', e);
     }
