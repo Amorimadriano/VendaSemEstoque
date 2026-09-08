@@ -103,7 +103,15 @@ export async function getCategories() {
 
 export async function getMarketplaces() {
   const supabase = getSupabase();
-  const { data, error } = await supabase.from('marketplaces').select('*').order('name');
+  const { data, error } = await supabase
+    .from('marketplaces')
+    .select('*, products(count)')
+    .order('name');
   if (error) throw error;
-  return data || [];
+  return (data || [])
+    .map((marketplace: any) => ({
+      ...marketplace,
+      _count: { products: marketplace.products?.[0]?.count || 0 },
+    }))
+    .filter((marketplace: any) => marketplace._count.products > 0 && marketplace.slug !== 'hotmart');
 }
