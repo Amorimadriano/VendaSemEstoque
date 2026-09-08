@@ -1,0 +1,53 @@
+name: Autonomous Marketplace Sync and Facebook Publish
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  autonomous_workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Execute Autonomous Marketplace Sync & Auto-Publish
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://vgduzuvnhyebymhywmse.supabase.co' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.SUPABASE_POOLER_DATABASE_URL || secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.SUPABASE_DIRECT_DATABASE_URL || secrets.DIRECT_URL }}
+          MERCADOLIVRE_CLIENT_ID: ${{ secrets.MERCADOLIVRE_CLIENT_ID }}
+          MERCADOLIVRE_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
+          MERCADOLIVRE_TOOL_ID: ${{ secrets.MERCADOLIVRE_TOOL_ID }}
+          MERCADOLIVRE_ACCESS_TOKEN: ${{ secrets.MERCADOLIVRE_ACCESS_TOKEN }}
+          MERCADOLIVRE_REFRESH_TOKEN: ${{ secrets.MERCADOLIVRE_REFRESH_TOKEN }}
+          ALIEXPRESS_APP_KEY: ${{ secrets.ALIEXPRESS_APP_KEY }}
+          ALIEXPRESS_APP_SECRET: ${{ secrets.ALIEXPRESS_APP_SECRET }}
+          ALIEXPRESS_TRACKING_ID: ${{ secrets.ALIEXPRESS_TRACKING_ID }}
+          SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
+          SHOPEE_SECRET: ${{ secrets.SHOPEE_SECRET }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_FACEBOOK_PAGE_ID: ${{ secrets.META_FACEBOOK_PAGE_ID }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://venda-sem-estoque.pages.dev' }}
+          PRODUCT_SEARCHES: ${{ vars.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa' }}
+          PRODUCT_MIN_PRICE: ${{ vars.PRODUCT_MIN_PRICE || '20' }}
+          PRODUCT_MAX_PRICE: ${{ vars.PRODUCT_MAX_PRICE || '15000' }}
+          MARKETPLACES_TO_SYNC: ${{ vars.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress,shopee' }}
+        run: |
+          npx tsx -e "
+            import { runAutonomousMarketplaceAndPublishWorkflow } from './services/autonomousWorkflowAgent';
+            runAutonomousMarketplaceAndPublishWorkflow()
+              .then(res => console.log('Autonomous workflow finished:', JSON.stringify(res, null, 2)))
+              .catch(err => { console.error('Workflow error:', err); process.exit(1); });
+          "

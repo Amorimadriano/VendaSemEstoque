@@ -1,6 +1,9 @@
 export default {
   async scheduled(_controller, env) {
-    const endpoints = ['discover', 'content-drafts', 'campaign-drafts'];
+    const endpoints = [
+      'autonomous-workflow',
+      'campaign-drafts',
+    ];
     for (const endpoint of endpoints) {
       const response = await fetch(`${env.APP_BASE_URL}/api/admin/automation/${endpoint}`, {
         method: 'POST',
