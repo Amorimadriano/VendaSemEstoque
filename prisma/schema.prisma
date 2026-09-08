@@ -196,7 +196,7 @@ model Product {
 
   @@map("products")
   @@schema("public")
-  @@unique([externalProductId])
+  @@unique([marketplaceId, externalProductId], map: "products_marketplace_external_unique")
 }
 
 model AffiliateLink {

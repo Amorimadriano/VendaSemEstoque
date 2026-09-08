@@ -109,39 +109,49 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
   const optimizedTitle = optimizeTitle(product);
   const optimizedDescription = optimizeDescription(product);
 
-  const { data: currentProduct } = await supabase.from('products').select('id').eq('external_product_id', product.externalProductId).maybeSingle();
-    const productData = {
-      id: currentProduct?.id || crypto.randomUUID(),
-      name: optimizedTitle,
-      description: optimizedDescription,
-      category_id: category.id,
-      marketplace_id: marketplace.id,
-      brand: product.brand || null,
-      image_url: product.imageUrl,
-      images: JSON.stringify(product.images?.length ? product.images : [product.imageUrl]),
-      price: product.price,
-      old_price: product.oldPrice || null,
-      discount_percentage: product.discountPercentage || null,
-      rating: product.rating,
-      review_count: product.reviewCount,
-      sales_count: product.salesCount || 0,
-      popularity_score: ranking,
-      trend_score: product.salesCount && product.salesCount > 100 ? ranking : 0,
-      commission_percentage: commissionPercentage,
-      commission_value: product.price * commissionPercentage / 100,
-      external_product_id: product.externalProductId,
-      original_url: product.originalUrl,
-      affiliate_url: affiliateUrl,
-      last_synced_at: now,
-      updated_at: now,
-      ...(currentProduct ? {} : { created_at: now }),
-      is_best_seller: (product.salesCount || 0) >= 1000,
-      is_trending: ranking >= 35,
-      status: 'ACTIVE',
+  const { data: currentProduct } = await supabase
+    .from('products')
+    .select('id')
+    .eq('marketplace_id', marketplace.id)
+    .eq('external_product_id', product.externalProductId)
+    .maybeSingle();
+
+  const productData = {
+    id: currentProduct?.id || crypto.randomUUID(),
+    name: optimizedTitle,
+    description: optimizedDescription,
+    category_id: category.id,
+    marketplace_id: marketplace.id,
+    brand: product.brand || null,
+    image_url: product.imageUrl,
+    images: JSON.stringify(product.images?.length ? product.images : [product.imageUrl]),
+    price: product.price,
+    old_price: product.oldPrice || null,
+    discount_percentage: product.discountPercentage || null,
+    rating: product.rating,
+    review_count: product.reviewCount,
+    sales_count: product.salesCount || 0,
+    popularity_score: ranking,
+    trend_score: product.salesCount && product.salesCount > 100 ? ranking : 0,
+    commission_percentage: commissionPercentage,
+    commission_value: product.price * commissionPercentage / 100,
+    external_product_id: product.externalProductId,
+    original_url: product.originalUrl,
+    affiliate_url: affiliateUrl,
+    last_synced_at: now,
+    updated_at: now,
+    ...(currentProduct ? {} : { created_at: now }),
+    is_best_seller: (product.salesCount || 0) >= 1000,
+    is_trending: ranking >= 35,
+    status: 'ACTIVE',
     slug,
   };
 
-  const { data: savedProduct, error: productError } = await supabase.from('products').upsert(productData, { onConflict: 'external_product_id' }).select('id').single();
+  const { data: savedProduct, error: productError } = await supabase
+    .from('products')
+    .upsert(productData, { onConflict: 'marketplace_id,external_product_id' })
+    .select('id')
+    .single();
   if (productError) throw productError;
 
   const { error: historyError } = await supabase.from('price_history').insert({ id: crypto.randomUUID(), product_id: savedProduct.id, price: product.price, old_price: product.oldPrice || null });
@@ -313,9 +323,22 @@ export async function runProductDiscovery() {
       if (existingError) throw existingError;
       for (const product of existing || []) {
         if (!discovered.has(`${marketplaceSlug}:${product.external_product_id}`)) {
-          const available = await integration.getAvailability(product.external_product_id);
-          if (!available) {
-            await supabase.from('products').update({ status: 'OUT_OF_STOCK', last_synced_at: new Date().toISOString() }).eq('id', product.id);
+          try {
+            if (typeof (integration as any).verifyProduct === 'function') {
+              const check = await (integration as any).verifyProduct(product.external_product_id);
+              // IMPORTANTE: Só marca OUT_OF_STOCK se o produto for expressamente confirmado como inexistente/inativo ('NOT_FOUND').
+              // Se o status for 'ERROR' (500, 429, timeout), NÃO altera para OUT_OF_STOCK.
+              if (check.status === 'NOT_FOUND') {
+                await supabase.from('products').update({ status: 'OUT_OF_STOCK', last_synced_at: new Date().toISOString() }).eq('id', product.id);
+              }
+            } else {
+              const available = await integration.getAvailability(product.external_product_id);
+              if (available === false) {
+                await supabase.from('products').update({ status: 'OUT_OF_STOCK', last_synced_at: new Date().toISOString() }).eq('id', product.id);
+              }
+            }
+          } catch (availabilityErr) {
+            console.warn(`[AvailabilityCheck] Falha temporária (500/429/timeout) ao verificar ${marketplaceSlug}/${product.external_product_id}. Status ativo mantido:`, availabilityErr);
           }
         }
       }

@@ -1,4 +1,4 @@
-import { MarketplaceIntegration } from '../MarketplaceIntegration';
+import { MarketplaceIntegration, ProductVerificationResult } from '../MarketplaceIntegration';
 import { ExternalProduct } from '../../types';
 
 export interface MercadoLivreIntegrationConfig {
@@ -537,6 +537,101 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
 
   /**
    * ------------------------------------------------------------
+   * VERIFICAÇÃO DETALHADA COM DISCRIMINAÇÃO DE ERRO
+   * ------------------------------------------------------------
+   *
+   * Garante que:
+   * - 500, 429, timeout ou erros de rede retornem status 'ERROR'
+   * - Apenas 404/410 ou status !== 'active' retornem status 'NOT_FOUND'
+   * - Produtos ativos com estoque retornem status 'VERIFIED'
+   */
+
+  async verifyProduct(
+    externalId: string
+  ): Promise<ProductVerificationResult> {
+    const id = String(externalId || '').trim();
+    if (!id) {
+      return { status: 'NOT_FOUND', reason: 'ID de produto ausente' };
+    }
+
+    const url = `https://api.mercadolibre.com/items/${encodeURIComponent(id)}`;
+
+    let response: Response;
+    try {
+      response = await this.request(url);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return {
+        status: 'ERROR',
+        reason: `Erro de rede/timeout ao consultar Mercado Livre: ${msg}`,
+      };
+    }
+
+    if (response.status === 404 || response.status === 410) {
+      return {
+        status: 'NOT_FOUND',
+        reason: `Anúncio não existe ou foi removido no Mercado Livre (HTTP ${response.status})`,
+      };
+    }
+
+    if (response.status === 429 || response.status >= 500) {
+      return {
+        status: 'ERROR',
+        reason: `Falha temporária na API do Mercado Livre (HTTP ${response.status})`,
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        status: 'ERROR',
+        reason: `Resposta inesperada da API do Mercado Livre (HTTP ${response.status})`,
+      };
+    }
+
+    let item: MercadoLivreSearchItem;
+    try {
+      item = (await response.json()) as MercadoLivreSearchItem;
+    } catch (error) {
+      return {
+        status: 'ERROR',
+        reason: 'Resposta JSON inválida da API do Mercado Livre',
+      };
+    }
+
+    if (!item?.id) {
+      return { status: 'NOT_FOUND', reason: 'Anúncio retornado sem ID válido' };
+    }
+
+    if (item.status && item.status !== 'active') {
+      return {
+        status: 'NOT_FOUND',
+        reason: `Anúncio inativo no Mercado Livre (status: ${item.status})`,
+      };
+    }
+
+    if (Number(item.available_quantity || 0) <= 0) {
+      return {
+        status: 'NOT_FOUND',
+        reason: 'Estoque esgotado no Mercado Livre (available_quantity <= 0)',
+      };
+    }
+
+    const product = this.convertProduct(item);
+    if (!product) {
+      return {
+        status: 'NOT_FOUND',
+        reason: 'Anúncio não atende aos requisitos de conversão do catálogo',
+      };
+    }
+
+    return {
+      status: 'VERIFIED',
+      product,
+    };
+  }
+
+  /**
+   * ------------------------------------------------------------
    * PRODUTO INDIVIDUAL
    * ------------------------------------------------------------
    */
@@ -550,12 +645,12 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
       return null;
     }
 
-    const verified =
-      await this.getItemsBulk([id]);
+    const verification = await this.verifyProduct(id);
+    if (verification.status === 'VERIFIED' && verification.product) {
+      return verification.product;
+    }
 
-    return (
-      verified.get(id) || null
-    );
+    return null;
   }
 
   /**
@@ -587,16 +682,28 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
    * ------------------------------------------------------------
    * DISPONIBILIDADE
    * ------------------------------------------------------------
+   *
+   * IMPORTANTE:
+   * Erros de rede, 500 ou 429 lançam erro (ou não confirmam indisponibilidade)
+   * para evitar marcar produtos ativos como OUT_OF_STOCK por falha transitória.
    */
 
   async getAvailability(
     externalId: string
   ): Promise<boolean> {
-    const product =
-      await this.getProduct(externalId);
+    const verification = await this.verifyProduct(externalId);
 
-    return Boolean(
-      product?.isAvailable
+    if (verification.status === 'VERIFIED') {
+      return true;
+    }
+
+    if (verification.status === 'NOT_FOUND') {
+      return false;
+    }
+
+    // Em caso de 'ERROR' (500, 429, timeout), lança erro para não marcar como OUT_OF_STOCK
+    throw new Error(
+      `Falha transitória na verificação do Mercado Livre (${verification.reason}). Não marcar como OUT_OF_STOCK.`
     );
   }
 
