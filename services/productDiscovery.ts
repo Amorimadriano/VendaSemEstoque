@@ -6,16 +6,70 @@ const SEARCHES = (process.env.PRODUCT_SEARCHES || 'eletronicos,celular,fones,not
 const MIN_RATING = Number(process.env.PRODUCT_MIN_RATING || 4);
 const MIN_REVIEWS = Number(process.env.PRODUCT_MIN_REVIEWS || 20);
 const DEFAULT_COMMISSION = Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10);
-const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 30);
-const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 5000);
+const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 20);
+const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 15000);
 const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
 
 function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 }
 
-function isWorthPublishing(product: ExternalProduct) {
-  return product.isAvailable && product.price >= MIN_PRICE && product.price <= MAX_PRICE;
+type ValidationResult = {
+  isValid: boolean;
+  reason?: string;
+};
+
+export function validateCandidateProduct(product: ExternalProduct, marketplaceSlug: string): ValidationResult {
+  if (!product) return { isValid: false, reason: 'Produto nulo ou indefinido' };
+
+  // 1. Validação de ID original
+  if (!product.externalProductId || typeof product.externalProductId !== 'string' || product.externalProductId.trim().length < 3) {
+    return { isValid: false, reason: 'ID de produto original inválido ou ausente' };
+  }
+
+  // 2. Validação de Título/Nome
+  if (!product.name || typeof product.name !== 'string' || product.name.trim().length < 5) {
+    return { isValid: false, reason: 'Título do produto inválido (mínimo 5 caracteres)' };
+  }
+
+  // 3. Validação de Preço
+  if (typeof product.price !== 'number' || Number.isNaN(product.price) || product.price <= 0) {
+    return { isValid: false, reason: 'Preço deve ser maior que zero' };
+  }
+  if (product.price < MIN_PRICE || product.price > MAX_PRICE) {
+    return { isValid: false, reason: `Preço fora da faixa permitida (R$ ${MIN_PRICE} a R$ ${MAX_PRICE})` };
+  }
+
+  // 4. Validação de Imagem
+  if (!product.imageUrl || typeof product.imageUrl !== 'string' || !product.imageUrl.startsWith('http')) {
+    return { isValid: false, reason: 'URL da imagem principal inválida ou ausente' };
+  }
+
+  // 5. Validação de URL Original (deve ser anúncio/produto real, não página de busca ou categoria)
+  if (!product.originalUrl || typeof product.originalUrl !== 'string' || !product.originalUrl.startsWith('http')) {
+    return { isValid: false, reason: 'URL original inválida ou ausente' };
+  }
+
+  if (marketplaceSlug === 'mercadolivre') {
+    const mlUrl = product.originalUrl.toLowerCase();
+    if (mlUrl.includes('lista.mercadolivre.com.br') || mlUrl.includes('/search') || mlUrl.includes('/busca')) {
+      return { isValid: false, reason: 'URL do Mercado Livre é página de busca, não anúncio de produto direto' };
+    }
+  }
+
+  if (marketplaceSlug === 'aliexpress') {
+    const aliUrl = product.originalUrl.toLowerCase();
+    if (aliUrl.includes('/wholesale') || aliUrl.includes('/category') || aliUrl.includes('/search')) {
+      return { isValid: false, reason: 'URL do AliExpress é categoria/busca, não anúncio de item direto' };
+    }
+  }
+
+  // 6. Validação de Disponibilidade
+  if (!product.isAvailable) {
+    return { isValid: false, reason: 'Produto marcado como indisponível ou esgotado' };
+  }
+
+  return { isValid: true };
 }
 
 function optimizeTitle(product: ExternalProduct) {
@@ -143,19 +197,16 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
   }
 
   const integration = getMarketplaceIntegration(marketplaceSlug);
-  let found = 0;
-  let filteredOut = 0;
+  const rawCandidates: ExternalProduct[] = [];
   const errors: string[] = [];
 
+  // ETAPA 1: Busca de candidatos nos termos configurados
   for (const search of SEARCHES) {
     try {
       const products = await integration.getProducts(search, undefined, 20);
-      found += products.length;
       for (const product of products) {
-        if (isWorthPublishing(product)) {
-          discovered.set(`${marketplaceSlug}:${product.externalProductId}`, product);
-        } else {
-          filteredOut += 1;
+        if (product && product.externalProductId) {
+          rawCandidates.push(product);
         }
       }
     } catch (error) {
@@ -165,6 +216,53 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
     }
   }
 
+  const foundCount = rawCandidates.length;
+  let filteredOut = 0;
+
+  // ETAPA 2: Barreira de Validação e Reconsulta de Origem (Gatekeeper)
+  // Agrupa IDs únicos para revalidar a existência e disponibilidade no marketplace
+  const candidateIds = Array.from(new Set(rawCandidates.map((c) => c.externalProductId)));
+  let verifiedOriginMap = new Map<string, ExternalProduct>();
+
+  if (typeof (integration as any).getItemsBulk === 'function') {
+    try {
+      verifiedOriginMap = await (integration as any).getItemsBulk(candidateIds);
+    } catch (err) {
+      console.warn(`Bulk origin verification failed for ${marketplaceSlug}:`, err);
+    }
+  }
+
+  for (const candidate of rawCandidates) {
+    const externalId = candidate.externalProductId;
+    // Se o item foi revalidado na origem, usa os dados atualizados em tempo real
+    let productToValidate: ExternalProduct | null = verifiedOriginMap.get(externalId) || null;
+
+    if (!productToValidate) {
+      try {
+        productToValidate = await integration.getProduct(externalId);
+      } catch {
+        productToValidate = null;
+      }
+    }
+
+    // Se a consulta direta na origem não confirmou o produto ativo, descarta o candidato
+    if (!productToValidate || !productToValidate.isAvailable) {
+      filteredOut += 1;
+      continue;
+    }
+
+    // Aplica a barreira estrita de validação de campos (Preço > 0, Imagem HTTP, URL direta)
+    const validation = validateCandidateProduct(productToValidate, marketplaceSlug);
+    if (!validation.isValid) {
+      filteredOut += 1;
+      console.warn(`[Gatekeeper] Produto ${externalId} rejeitado: ${validation.reason}`);
+      continue;
+    }
+
+    discovered.set(`${marketplaceSlug}:${externalId}`, productToValidate);
+  }
+
+  // ETAPA 3: Persistência apenas de produtos aprovados pela barreira
   let published = 0;
   for (const [key, product] of discovered.entries()) {
     try {
@@ -185,7 +283,7 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
   const log: MarketplaceSyncLog = {
     marketplaceSlug,
     searchedTerms: SEARCHES.length,
-    found,
+    found: foundCount,
     filteredOut,
     published,
     status,

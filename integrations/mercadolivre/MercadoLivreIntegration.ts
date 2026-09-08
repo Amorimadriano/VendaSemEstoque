@@ -273,72 +273,112 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     });
   }
 
-  async getProduct(externalId: string): Promise<ExternalProduct | null> {
-    const fallbackItem = REAL_ML_TOP_PRODUCTS.find((p) => p.id === externalId);
-    if (fallbackItem) {
-      const discountPercentage = fallbackItem.original_price ? Math.round(((fallbackItem.original_price - fallbackItem.price) / fallbackItem.original_price) * 100) : undefined;
-      return {
-        externalProductId: fallbackItem.id,
-        name: fallbackItem.title,
-        description: fallbackItem.title,
-        categoryName: fallbackItem.category_name,
-        brand: fallbackItem.brand,
-        imageUrl: fallbackItem.thumbnail,
-        images: [fallbackItem.thumbnail],
-        price: fallbackItem.price,
-        oldPrice: fallbackItem.original_price,
-        discountPercentage,
-        rating: 4.8,
-        reviewCount: Math.floor(fallbackItem.sold_quantity / 4),
-        salesCount: fallbackItem.sold_quantity,
-        commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
-        commissionValue: 0,
-        originalUrl: fallbackItem.permalink,
-        affiliateUrl: fallbackItem.permalink,
-        isAvailable: fallbackItem.available_quantity > 0,
-      };
+  async getItemsBulk(ids: string[]): Promise<Map<string, ExternalProduct>> {
+    const verifiedMap = new Map<string, ExternalProduct>();
+    if (!ids.length) return verifiedMap;
+
+    const uniqueIds = Array.from(new Set(ids)).slice(0, 50);
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    };
+    const accessToken = await this.getAccessToken();
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+    // Tenta consultar em lote usando o endpoint oficial de itens do Mercado Livre
+    try {
+      const bulkUrl = `https://api.mercadolibre.com/items/bulk?ids=${uniqueIds.map(encodeURIComponent).join(',')}`;
+      let response = await fetch(bulkUrl, { headers });
+      if (!response.ok) {
+        // Fallback para o endpoint /items?ids=
+        response = await fetch(`https://api.mercadolibre.com/items?ids=${uniqueIds.map(encodeURIComponent).join(',')}`, { headers });
+      }
+
+      if (response.ok) {
+        const text = await response.text();
+        if (text.startsWith('{') || text.startsWith('[')) {
+          const rawItems = JSON.parse(text);
+          const list = Array.isArray(rawItems) ? rawItems : rawItems.results || [];
+          for (const entry of list) {
+            const item = entry.body || entry;
+            const statusCode = entry.code || 200;
+            if (statusCode !== 200 || !item || !item.id) continue;
+            // Barreira de validação: deve estar ativo e ter estoque
+            if (item.status !== 'active') continue;
+            if ((item.available_quantity || 0) <= 0) continue;
+            if (!item.price || item.price <= 0) continue;
+            if (!item.permalink || item.permalink.includes('lista.mercadolivre.com.br')) continue;
+
+            const imageUrl = item.thumbnail?.replace('-I.jpg', '-O.jpg') || item.pictures?.[0]?.url || item.secure_thumbnail || '';
+            if (!imageUrl || !imageUrl.startsWith('http')) continue;
+
+            const oldPrice = item.original_price && item.original_price > item.price ? item.original_price : undefined;
+            const discountPercentage = oldPrice ? Math.round(((oldPrice - item.price) / oldPrice) * 100) : undefined;
+            const brand = item.attributes?.find((attribute: any) => attribute.id === 'BRAND')?.value_name;
+
+            verifiedMap.set(item.id, {
+              externalProductId: item.id,
+              name: item.title,
+              description: item.title,
+              categoryName: 'Mercado Livre',
+              brand,
+              imageUrl,
+              images: item.pictures?.map((p: any) => p.url) || [imageUrl],
+              price: item.price,
+              oldPrice,
+              discountPercentage,
+              rating: 4.8,
+              reviewCount: Math.floor((item.sold_quantity || 100) / 4),
+              salesCount: item.sold_quantity || 0,
+              commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
+              commissionValue: 0,
+              originalUrl: item.permalink,
+              affiliateUrl: item.permalink,
+              isAvailable: true,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Mercado Livre bulk items verification warning:', err);
     }
 
-    const response = await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(externalId)}`, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
-    if (!response.ok) return null;
-    const item = await response.json() as {
-      id: string;
-      title: string;
-      permalink: string;
-      thumbnail?: string;
-      pictures?: Array<{ url: string }>;
-      price: number;
-      original_price?: number;
-      available_quantity?: number;
-      sold_quantity?: number;
-      attributes?: Array<{ id: string; value_name?: string }>;
-    };
-    const oldPrice = item.original_price && item.original_price > item.price ? item.original_price : undefined;
-    return {
-      externalProductId: item.id,
-      name: item.title,
-      description: item.title,
-      categoryName: 'Ofertas do Mercado Livre',
-      brand: item.attributes?.find((attribute) => attribute.id === 'BRAND')?.value_name,
-      imageUrl: item.thumbnail?.replace('-I.jpg', '-O.jpg') || item.pictures?.[0]?.url || '',
-      images: item.pictures?.map((picture) => picture.url) || [],
-      price: item.price,
-      oldPrice,
-      discountPercentage: oldPrice ? Math.round(((oldPrice - item.price) / oldPrice) * 100) : undefined,
-      rating: 4.8,
-      reviewCount: Math.floor((item.sold_quantity || 100) / 4),
-      salesCount: item.sold_quantity || 0,
-      commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
-      commissionValue: 0,
-      originalUrl: item.permalink,
-      affiliateUrl: item.permalink,
-      isAvailable: (item.available_quantity || 0) > 0,
-    } satisfies ExternalProduct;
+    // Para itens do catálogo de fallback pré-verificados
+    for (const id of uniqueIds) {
+      if (!verifiedMap.has(id)) {
+        const fallback = REAL_ML_TOP_PRODUCTS.find((p) => p.id === id);
+        if (fallback && fallback.available_quantity > 0) {
+          const discountPercentage = fallback.original_price ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100) : undefined;
+          verifiedMap.set(fallback.id, {
+            externalProductId: fallback.id,
+            name: fallback.title,
+            description: fallback.title,
+            categoryName: fallback.category_name,
+            brand: fallback.brand,
+            imageUrl: fallback.thumbnail,
+            images: [fallback.thumbnail],
+            price: fallback.price,
+            oldPrice: fallback.original_price,
+            discountPercentage,
+            rating: 4.8,
+            reviewCount: Math.floor(fallback.sold_quantity / 4),
+            salesCount: fallback.sold_quantity,
+            commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
+            commissionValue: 0,
+            originalUrl: fallback.permalink,
+            affiliateUrl: fallback.permalink,
+            isAvailable: true,
+          });
+        }
+      }
+    }
+
+    return verifiedMap;
+  }
+
+  async getProduct(externalId: string): Promise<ExternalProduct | null> {
+    const verified = await this.getItemsBulk([externalId]);
+    return verified.get(externalId) || null;
   }
 
   async getCategories(): Promise<{ id: string; name: string; slug: string }[]> {
