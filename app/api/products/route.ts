@@ -146,21 +146,44 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'ID do produto é obrigatório' }, { status: 400 });
+    let ids: string[] = [];
+
+    const idParam = searchParams.get('id') || searchParams.get('ids');
+    if (idParam) {
+      ids = idParam.split(',').map((s) => s.trim()).filter(Boolean);
+    } else {
+      try {
+        const body = await request.json();
+        if (Array.isArray(body?.ids)) {
+          ids = body.ids.map((s: any) => String(s).trim()).filter(Boolean);
+        } else if (body?.id) {
+          ids = [String(body.id).trim()];
+        }
+      } catch {}
+    }
+
+    if (!ids.length) {
+      return NextResponse.json({ error: 'Nenhum ID de produto informado para exclusão.' }, { status: 400 });
+    }
 
     const supabase = getSupabase();
-    await supabase.from('price_history').delete().eq('product_id', id);
-    await supabase.from('product_metrics').delete().eq('product_id', id);
-    await supabase.from('clicks').delete().eq('product_id', id);
-    await supabase.from('conversions').delete().eq('product_id', id);
-    await supabase.from('favorites').delete().eq('product_id', id);
-    await supabase.from('affiliate_links').delete().eq('product_id', id);
-    const { error } = await supabase.from('products').delete().eq('id', id);
+
+    // Exclui dependências vinculadas aos produtos selecionados
+    await supabase.from('price_history').delete().in('product_id', ids);
+    await supabase.from('product_metrics').delete().in('product_id', ids);
+    await supabase.from('clicks').delete().in('product_id', ids);
+    await supabase.from('conversions').delete().in('product_id', ids);
+    await supabase.from('favorites').delete().in('product_id', ids);
+    await supabase.from('affiliate_links').delete().in('product_id', ids);
+    await supabase.from('marketing_content').delete().in('product_id', ids);
+    await supabase.from('marketing_campaigns').delete().in('product_id', ids);
+    await supabase.from('marketing_ab_tests').delete().in('product_id', ids);
+
+    const { error } = await supabase.from('products').delete().in('id', ids);
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: ids.length });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao excluir produto' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Erro ao excluir produtos' }, { status: 500 });
   }
 }

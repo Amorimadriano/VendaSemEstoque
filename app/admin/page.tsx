@@ -28,6 +28,8 @@ export default function AdminDashboardPage() {
   const [marketplaces, setMarketplaces] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
   // Form state para novo produto
   const [newProduct, setNewProduct] = useState({
@@ -162,6 +164,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
+        setSelectedProductIds((current) => current.filter((item) => item !== id));
         fetchData();
       } else {
         alert('Erro ao excluir produto.');
@@ -169,6 +172,48 @@ export default function AdminDashboardPage() {
     } catch (e) {
       console.error(e);
       alert('Erro ao excluir produto.');
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedProductIds.length === products.length && products.length > 0) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(products.map((p) => p.id));
+    }
+  };
+
+  const toggleSelectProduct = (id: string) => {
+    setSelectedProductIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  };
+
+  const handleDeleteBulk = async () => {
+    if (!selectedProductIds.length) return;
+    const count = selectedProductIds.length;
+    if (!confirm(`Deseja realmente excluir os ${count} produtos selecionados em lote?`)) return;
+
+    setIsDeletingBulk(true);
+    try {
+      const res = await fetch('/api/products', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedProductIds }),
+      });
+
+      if (res.ok) {
+        setSelectedProductIds([]);
+        await fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || 'Erro ao excluir produtos em lote.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao excluir produtos em lote.');
+    } finally {
+      setIsDeletingBulk(false);
     }
   };
 
@@ -273,15 +318,53 @@ export default function AdminDashboardPage() {
 
       {/* Tabela de Produtos */}
       <section className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900">Gerenciamento de Produtos Cadastrados</h3>
-          <span className="text-xs text-gray-500">{products.length} itens listados</span>
+        <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h3 className="text-base font-bold text-gray-900">Gerenciamento de Produtos Cadastrados</h3>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded-full font-medium">
+              {products.length} {products.length === 1 ? 'item' : 'itens'}
+            </span>
+          </div>
+
+          {/* Barra de Ações em Lote */}
+          {selectedProductIds.length > 0 && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl">
+              <span className="text-xs font-bold text-red-700">
+                {selectedProductIds.length} {selectedProductIds.length === 1 ? 'selecionado' : 'selecionados'}
+              </span>
+              <button
+                type="button"
+                onClick={handleDeleteBulk}
+                disabled={isDeletingBulk}
+                className="inline-flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1 rounded-lg shadow-xs transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {isDeletingBulk ? 'Excluindo...' : `Excluir Selecionados (${selectedProductIds.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedProductIds([])}
+                className="text-[11px] text-gray-600 hover:text-gray-900 underline ml-1"
+              >
+                Desmarcar
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-gray-700">
             <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200 uppercase">
               <tr>
+                <th className="p-4 w-10">
+                  <input
+                    type="checkbox"
+                    checked={products.length > 0 && selectedProductIds.length === products.length}
+                    onChange={toggleSelectAll}
+                    title="Selecionar todos os produtos"
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                  />
+                </th>
                 <th className="p-4">Produto</th>
                 <th className="p-4">Loja Parceira</th>
                 <th className="p-4">Preço (R$)</th>
@@ -292,45 +375,80 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {products.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50/80 transition-colors">
-                  <td className="p-4 flex items-center gap-3">
-                    <img src={p.imageUrl} alt={p.name} className="w-10 h-10 object-contain rounded bg-gray-50 p-1 border border-gray-200" />
-                    <div>
-                      <div className="font-bold text-gray-900 line-clamp-1">{p.name}</div>
-                      <div className="text-[10px] text-gray-400">SKU: {p.externalProductId}</div>
-                    </div>
-                  </td>
-                  <td className="p-4 font-semibold text-gray-800">{p.marketplace.name}</td>
-                  <td className="p-4 font-bold text-gray-900">R$ {p.price.toFixed(2)}</td>
-                  <td className="p-4 font-semibold text-emerald-600">{p.commissionPercentage}% (R$ {p.commissionValue.toFixed(2)})</td>
-                  <td className="p-4 font-bold text-indigo-600">{p.computedScore}</td>
-                  <td className="p-4">
-                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <a
-                        href={`/go/${p.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-[11px] bg-blue-50 px-2 py-1 rounded-lg border border-blue-200"
-                      >
-                        Link <ExternalLink className="w-3 h-3" />
-                      </a>
-                      <button
-                        onClick={() => handleDeleteProduct(p.id, p.name)}
-                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Excluir produto"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              {products.map((p) => {
+                const isSelected = selectedProductIds.includes(p.id);
+                const imageSrc = p.imageUrl ? `/api/images?src=${encodeURIComponent(p.imageUrl)}` : '';
+                return (
+                  <tr
+                    key={p.id}
+                    className={`transition-colors ${
+                      isSelected ? 'bg-blue-50/70 hover:bg-blue-50' : 'hover:bg-gray-50/80'
+                    }`}
+                  >
+                    <td className="p-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectProduct(p.id)}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-4 flex items-center gap-3">
+                      <img
+                        src={imageSrc}
+                        alt={p.name}
+                        className="w-10 h-10 object-contain rounded bg-gray-50 p-1 border border-gray-200"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.opacity = '0.3';
+                        }}
+                      />
+                      <div>
+                        <div className="font-bold text-gray-900 line-clamp-1">{p.name}</div>
+                        <div className="text-[10px] text-gray-400">SKU: {p.externalProductId}</div>
+                      </div>
+                    </td>
+                    <td className="p-4 font-semibold text-gray-800">{p.marketplace?.name}</td>
+                    <td className="p-4 font-bold text-gray-900">R$ {p.price?.toFixed(2)}</td>
+                    <td className="p-4 font-semibold text-emerald-600">
+                      {p.commissionPercentage}% (R$ {p.commissionValue?.toFixed(2)})
+                    </td>
+                    <td className="p-4 font-bold text-indigo-600">{p.computedScore}</td>
+                    <td className="p-4">
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <a
+                          href={`/go/${p.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-[11px] bg-blue-50 px-2 py-1 rounded-lg border border-blue-200"
+                        >
+                          Link <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <button
+                          onClick={() => handleDeleteProduct(p.id, p.name)}
+                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Excluir produto"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!products.length && (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                    Nenhum produto cadastrado no momento.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
