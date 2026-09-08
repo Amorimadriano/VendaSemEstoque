@@ -1,427 +1,756 @@
 import { MarketplaceIntegration } from '../MarketplaceIntegration';
 import { ExternalProduct } from '../../types';
 
-const REAL_ML_TOP_PRODUCTS = [
-  {
-    id: 'MLB28503893',
-    title: 'Samsung Galaxy S24 Ultra 5G 512GB Titânio Cinza 12GB RAM',
-    permalink: 'https://www.mercadolivre.com.br/samsung-galaxy-s24-ultra-5g-dual-sim-512-gb-cinza-12-gb-ram/p/MLB28503893',
-    thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_698246-MLA74079815045_012024-O.webp',
-    price: 6499.00,
-    original_price: 7999.00,
-    available_quantity: 50,
-    sold_quantity: 1450,
-    category_name: 'Smartphones',
-    brand: 'Samsung',
-  },
-  {
-    id: 'MLB27161705',
-    title: 'Apple iPhone 15 128GB Preto Tela 6.1" Câmera 48MP',
-    permalink: 'https://www.mercadolivre.com.br/apple-iphone-15-128-gb-preto-distribuidor-autorizado/p/MLB27161705',
-    thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_753856-MLA71782867498_092023-O.webp',
-    price: 4799.00,
-    original_price: 5899.00,
-    available_quantity: 120,
-    sold_quantity: 3200,
-    category_name: 'Smartphones',
-    brand: 'Apple',
-  },
-  {
-    id: 'MLB23348107',
-    title: 'Fone de Ouvido Sem Fio JBL Tune 520BT Bluetooth com Microfone',
-    permalink: 'https://www.mercadolivre.com.br/fone-de-ouvido-sem-fio-jbl-tune-520bt-preto/p/MLB23348107',
-    thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_864834-MLA54955743841_042023-O.webp',
-    price: 239.90,
-    original_price: 299.90,
-    available_quantity: 300,
-    sold_quantity: 8500,
-    category_name: 'Áudio & Som',
-    brand: 'JBL',
-  },
-  {
-    id: 'MLB24119337',
-    title: 'Smart TV 50" 4K UHD Samsung Crystal CU7700 Gaming Hub HDR',
-    permalink: 'https://www.mercadolivre.com.br/smart-tv-samsung-50-crystal-uhd-4k-50cu7700-2023/p/MLB24119337',
-    thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_789182-MLA70129384712_062023-O.webp',
-    price: 2199.00,
-    original_price: 2799.00,
-    available_quantity: 40,
-    sold_quantity: 2100,
-    category_name: 'TV & Vídeo',
-    brand: 'Samsung',
-  },
-  {
-    id: 'MLB19575971',
-    title: 'Fritadeira Elétrica Sem Óleo Air Fryer Mondial Family 4 Litros AFN-40-BI',
-    permalink: 'https://www.mercadolivre.com.br/fritadeira-eletrica-sem-oleo-air-fryer-mondial-family-inox-4l-afn-40-bi-preto-inox-127v/p/MLB19575971',
-    thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_891273-MLA50192837461_052022-O.webp',
-    price: 289.90,
-    original_price: 379.90,
-    available_quantity: 150,
-    sold_quantity: 12000,
-    category_name: 'Eletrodomésticos',
-    brand: 'Mondial',
-  },
-  {
-    id: 'MLB21644773',
-    title: 'Echo Dot 5ª Geração Smart Speaker com Alexa Cor Preta',
-    permalink: 'https://www.mercadolivre.com.br/novo-echo-dot-5-geracao-smart-speaker-com-alexa-cor-preta/p/MLB21644773',
-    thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_691823-MLA51928374619_102022-O.webp',
-    price: 349.00,
-    original_price: 429.00,
-    available_quantity: 80,
-    sold_quantity: 9400,
-    category_name: 'Casa Inteligente',
-    brand: 'Amazon',
-  },
-  {
-    id: 'MLB18950800',
-    title: 'Caixa de Som Bluetooth Portátil JBL Flip 6 À Prova D\'água 20W',
-    permalink: 'https://www.mercadolivre.com.br/caixa-de-som-portatil-jbl-flip-6-com-bluetooth-a-prova-dagua-preta/p/MLB18950800',
-    thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_781923-MLA49182736451_022022-O.webp',
-    price: 649.00,
-    original_price: 849.00,
-    available_quantity: 65,
-    sold_quantity: 4300,
-    category_name: 'Áudio & Som',
-    brand: 'JBL',
-  },
-  {
-    id: 'MLB27986064',
-    title: 'Notebook Lenovo IdeaPad 1 15.6" AMD Ryzen 5 8GB 256GB SSD Linux',
-    permalink: 'https://www.mercadolivre.com.br/notebook-lenovo-ideapad-1-15amn7-cloud-grey-156-amd-ryzen-5-7520u-8gb-de-ram-256gb-ssd-amd-radeon-610m-1920x1080px-linux/p/MLB27986064',
-    thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_891827-MLA71928374619_092023-O.webp',
-    price: 2499.00,
-    original_price: 3199.00,
-    available_quantity: 35,
-    sold_quantity: 1800,
-    category_name: 'Informática',
-    brand: 'Lenovo',
-  },
-];
+export interface MercadoLivreIntegrationConfig {
+  accessToken?: string;
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
+}
+
+type MercadoLivreSearchItem = {
+  id?: string;
+  title?: string;
+  price?: number;
+  original_price?: number | null;
+  available_quantity?: number;
+  sold_quantity?: number;
+  condition?: string;
+  permalink?: string;
+  thumbnail?: string;
+  pictures?: Array<{
+    url?: string;
+    secure_url?: string;
+  }>;
+  status?: string;
+  category_id?: string;
+};
+
+type MercadoLivreBulkResponse = {
+  code?: number;
+  body?: MercadoLivreSearchItem;
+};
+
+type MercadoLivreSearchResponse = {
+  results?: MercadoLivreSearchItem[];
+};
 
 export class MercadoLivreIntegration implements MarketplaceIntegration {
   marketplaceSlug = 'mercadolivre';
   marketplaceName = 'Mercado Livre';
-  private accessToken?: string;
 
-  private async getAccessToken() {
-    if (this.accessToken) return this.accessToken;
-    if (process.env.MERCADOLIVRE_ACCESS_TOKEN) {
-      this.accessToken = process.env.MERCADOLIVRE_ACCESS_TOKEN;
-      return this.accessToken;
-    }
-    if (process.env.MERCADOLIVRE_REFRESH_TOKEN) {
-      return this.refreshAccessToken();
-    }
-    return undefined;
+  private accessToken?: string;
+  private clientId?: string;
+  private clientSecret?: string;
+  private refreshToken?: string;
+
+  constructor(config: MercadoLivreIntegrationConfig = {}) {
+    this.accessToken = config.accessToken || process.env.MERCADOLIVRE_ACCESS_TOKEN;
+    this.clientId = config.clientId || process.env.MERCADOLIVRE_CLIENT_ID;
+    this.clientSecret = config.clientSecret || process.env.MERCADOLIVRE_CLIENT_SECRET;
+    this.refreshToken = config.refreshToken || process.env.MERCADOLIVRE_REFRESH_TOKEN;
   }
 
-  private async refreshAccessToken() {
-    if (!process.env.MERCADOLIVRE_REFRESH_TOKEN || !process.env.MERCADOLIVRE_CLIENT_ID || !process.env.MERCADOLIVRE_CLIENT_SECRET) return undefined;
-    const response = await fetch('https://api.mercadolibre.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: process.env.MERCADOLIVRE_CLIENT_ID,
-        client_secret: process.env.MERCADOLIVRE_CLIENT_SECRET,
-        refresh_token: process.env.MERCADOLIVRE_REFRESH_TOKEN,
-      }),
-    });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      console.warn(`Mercado Livre token refresh warning (${response.status}): ${detail.slice(0, 200)}`);
+  /**
+   * ------------------------------------------------------------
+   * HTTP
+   * ------------------------------------------------------------
+   */
+
+  private async refreshAccessToken(): Promise<string | undefined> {
+    const refreshToken = this.refreshToken || process.env.MERCADOLIVRE_REFRESH_TOKEN;
+    const clientId = this.clientId || process.env.MERCADOLIVRE_CLIENT_ID;
+    const clientSecret = this.clientSecret || process.env.MERCADOLIVRE_CLIENT_SECRET;
+    if (!refreshToken || !clientId || !clientSecret) return undefined;
+
+    try {
+      const res = await fetch('https://api.mercadolibre.com/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: refreshToken,
+        }),
+      });
+      if (!res.ok) return undefined;
+      const data = await res.json() as { access_token?: string; refresh_token?: string };
+      this.accessToken = data.access_token;
+      if (data.refresh_token) {
+        this.refreshToken = data.refresh_token;
+        process.env.MERCADOLIVRE_REFRESH_TOKEN = data.refresh_token;
+      }
+      return this.accessToken;
+    } catch {
       return undefined;
     }
-    const data = await response.json() as { access_token?: string; refresh_token?: string };
-    this.accessToken = data.access_token;
-    if (data.refresh_token) process.env.MERCADOLIVRE_REFRESH_TOKEN = data.refresh_token;
-    return this.accessToken;
   }
 
-  async getProducts(query?: string, category?: string, limit = 10): Promise<ExternalProduct[]> {
-    const search = new URL('https://api.mercadolibre.com/sites/MLB/search');
-    search.searchParams.set('q', query || 'ofertas');
-    search.searchParams.set('limit', String(Math.min(limit, 50)));
+  private async request(
+    url: string,
+    options: RequestInit = {}
+  ): Promise<Response> {
+    const headers = new Headers(options.headers);
 
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    };
-    let accessToken = await this.getAccessToken();
-    if (accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
+    headers.set('Accept', 'application/json');
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    const token = this.accessToken || process.env.MERCADOLIVRE_ACCESS_TOKEN;
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
     }
 
-    let response: Response | undefined;
-    try {
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
-        response = await fetch(search, { headers });
-        if (response.status === 401 && process.env.MERCADOLIVRE_REFRESH_TOKEN) {
-          accessToken = await this.refreshAccessToken();
-          if (accessToken) {
-            headers.Authorization = `Bearer ${accessToken}`;
-            response = await fetch(search, { headers });
-          }
-        }
-        if (response.ok) break;
-        if (![429, 500, 502, 503, 504].includes(response.status)) break;
-        await new Promise((resolve) => setTimeout(resolve, attempt * 500));
-      }
-
-      if (!response?.ok) {
-        const publicResponse = await fetch(search, {
-          headers: {
-            Accept: 'application/json',
-            'User-Agent': headers['User-Agent'],
-          },
-        });
-        if (publicResponse.ok) response = publicResponse;
-      }
-    } catch (e) {
-      console.warn('Direct ML search error:', e);
-    }
-
-    let data: {
-      results?: Array<{
-        id: string;
-        title: string;
-        permalink: string;
-        thumbnail?: string;
-        pictures?: Array<{ url: string }>;
-        price: number;
-        original_price?: number;
-        available_quantity?: number;
-        sold_quantity?: number;
-        category_id?: string;
-        attributes?: Array<{ id: string; value_name?: string }>;
-      }>;
-    } | null = null;
-
-    if (response?.ok) {
-      try {
-        const text = await response.text();
-        if (text.startsWith('{') || text.startsWith('[')) {
-          data = JSON.parse(text);
-        }
-      } catch (e) {
-        console.warn('Failed to parse ML response JSON:', e);
-      }
-    }
-
-    if (!data?.results?.length) {
-      console.warn(`Mercado Livre search API did not return JSON results. Using real top Mercado Livre products catalog.`);
-      const term = (query || '').toLowerCase();
-      const filtered = REAL_ML_TOP_PRODUCTS.filter((item) => !term || item.title.toLowerCase().includes(term) || item.category_name.toLowerCase().includes(term) || item.brand.toLowerCase().includes(term));
-      const chosen = filtered.length ? filtered : REAL_ML_TOP_PRODUCTS;
-      return chosen.slice(0, limit).map((item) => {
-        const discountPercentage = item.original_price ? Math.round(((item.original_price - item.price) / item.original_price) * 100) : undefined;
-        return {
-          externalProductId: item.id,
-          name: item.title,
-          description: item.title,
-          categoryName: item.category_name,
-          brand: item.brand,
-          imageUrl: item.thumbnail,
-          images: [item.thumbnail],
-          price: item.price,
-          oldPrice: item.original_price,
-          discountPercentage,
-          rating: 4.8,
-          reviewCount: Math.floor(item.sold_quantity / 4),
-          salesCount: item.sold_quantity,
-          commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
-          commissionValue: 0,
-          originalUrl: item.permalink,
-          affiliateUrl: item.permalink,
-          isAvailable: item.available_quantity > 0,
-        } satisfies ExternalProduct;
-      });
-    }
-
-    return (data.results || []).map((item) => {
-      const imageUrl = item.thumbnail?.replace('-I.jpg', '-O.jpg') || item.pictures?.[0]?.url || '';
-      const oldPrice = item.original_price && item.original_price > item.price ? item.original_price : undefined;
-      const discountPercentage = oldPrice ? Math.round(((oldPrice - item.price) / oldPrice) * 100) : undefined;
-      const brand = item.attributes?.find((attribute) => attribute.id === 'BRAND')?.value_name;
-
-      return {
-        externalProductId: item.id,
-        name: item.title,
-        description: item.title,
-        categoryName: category || 'Ofertas do Mercado Livre',
-        brand,
-        imageUrl,
-        images: item.pictures?.map((picture) => picture.url) || [imageUrl],
-        price: item.price,
-        oldPrice,
-        discountPercentage,
-        rating: 4.8,
-        reviewCount: Math.floor((item.sold_quantity || 100) / 4),
-        salesCount: item.sold_quantity || 0,
-        commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
-        commissionValue: 0,
-        originalUrl: item.permalink,
-        affiliateUrl: item.permalink,
-        isAvailable: (item.available_quantity || 0) > 0,
-      } satisfies ExternalProduct;
+    let response = await fetch(url, {
+      ...options,
+      headers,
     });
-  }
 
-  async getItemsBulk(ids: string[]): Promise<Map<string, ExternalProduct>> {
-    const verifiedMap = new Map<string, ExternalProduct>();
-    if (!ids.length) return verifiedMap;
-
-    const uniqueIds = Array.from(new Set(ids)).slice(0, 50);
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    };
-    const accessToken = await this.getAccessToken();
-    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-
-    // Tenta consultar em lote usando o endpoint oficial de itens do Mercado Livre
-    try {
-      const bulkUrl = `https://api.mercadolibre.com/items/bulk?ids=${uniqueIds.map(encodeURIComponent).join(',')}`;
-      let response = await fetch(bulkUrl, { headers });
-      if (!response.ok) {
-        // Fallback para o endpoint /items?ids=
-        response = await fetch(`https://api.mercadolibre.com/items?ids=${uniqueIds.map(encodeURIComponent).join(',')}`, { headers });
+    if (response.status === 401 && (this.refreshToken || process.env.MERCADOLIVRE_REFRESH_TOKEN)) {
+      const refreshed = await this.refreshAccessToken();
+      if (refreshed) {
+        headers.set('Authorization', `Bearer ${refreshed}`);
+        response = await fetch(url, {
+          ...options,
+          headers,
+        });
       }
-
-      if (response.ok) {
-        const text = await response.text();
-        if (text.startsWith('{') || text.startsWith('[')) {
-          const rawItems = JSON.parse(text);
-          const list = Array.isArray(rawItems) ? rawItems : rawItems.results || [];
-          for (const entry of list) {
-            const item = entry.body || entry;
-            const statusCode = entry.code || 200;
-            if (statusCode !== 200 || !item || !item.id) continue;
-            // Barreira de validação: deve estar ativo e ter estoque
-            if (item.status !== 'active') continue;
-            if ((item.available_quantity || 0) <= 0) continue;
-            if (!item.price || item.price <= 0) continue;
-            if (!item.permalink || item.permalink.includes('lista.mercadolivre.com.br')) continue;
-
-            const imageUrl = item.thumbnail?.replace('-I.jpg', '-O.jpg') || item.pictures?.[0]?.url || item.secure_thumbnail || '';
-            if (!imageUrl || !imageUrl.startsWith('http')) continue;
-
-            const oldPrice = item.original_price && item.original_price > item.price ? item.original_price : undefined;
-            const discountPercentage = oldPrice ? Math.round(((oldPrice - item.price) / oldPrice) * 100) : undefined;
-            const brand = item.attributes?.find((attribute: any) => attribute.id === 'BRAND')?.value_name;
-
-            verifiedMap.set(item.id, {
-              externalProductId: item.id,
-              name: item.title,
-              description: item.title,
-              categoryName: 'Mercado Livre',
-              brand,
-              imageUrl,
-              images: item.pictures?.map((p: any) => p.url) || [imageUrl],
-              price: item.price,
-              oldPrice,
-              discountPercentage,
-              rating: 4.8,
-              reviewCount: Math.floor((item.sold_quantity || 100) / 4),
-              salesCount: item.sold_quantity || 0,
-              commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
-              commissionValue: 0,
-              originalUrl: item.permalink,
-              affiliateUrl: item.permalink,
-              isAvailable: true,
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Mercado Livre bulk items verification warning:', err);
     }
 
-    // Para itens do catálogo de fallback pré-verificados
-    for (const id of uniqueIds) {
-      if (!verifiedMap.has(id)) {
-        const fallback = REAL_ML_TOP_PRODUCTS.find((p) => p.id === id);
-        if (fallback && fallback.available_quantity > 0) {
-          const discountPercentage = fallback.original_price ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100) : undefined;
-          verifiedMap.set(fallback.id, {
-            externalProductId: fallback.id,
-            name: fallback.title,
-            description: fallback.title,
-            categoryName: fallback.category_name,
-            brand: fallback.brand,
-            imageUrl: fallback.thumbnail,
-            images: [fallback.thumbnail],
-            price: fallback.price,
-            oldPrice: fallback.original_price,
-            discountPercentage,
-            rating: 4.8,
-            reviewCount: Math.floor(fallback.sold_quantity / 4),
-            salesCount: fallback.sold_quantity,
-            commissionPercentage: Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10),
-            commissionValue: 0,
-            originalUrl: fallback.permalink,
-            affiliateUrl: fallback.permalink,
-            isAvailable: true,
-          });
+    return response;
+  }
+
+  /**
+   * ------------------------------------------------------------
+   * VALIDADORES
+   * ------------------------------------------------------------
+   */
+
+  private isValidProductUrl(url?: string): boolean {
+    if (!url) return false;
+
+    try {
+      const parsed = new URL(url);
+
+      const validHost =
+        parsed.hostname === 'mercadolivre.com.br' ||
+        parsed.hostname === 'www.mercadolivre.com.br' ||
+        parsed.hostname === 'produto.mercadolivre.com.br' ||
+        parsed.hostname === 'lista.mercadolivre.com.br';
+
+      if (!validHost) {
+        return false;
+      }
+
+      const pathname = parsed.pathname.toLowerCase();
+
+      // Nunca aceitar páginas de pesquisa/listagem.
+      if (
+        parsed.hostname === 'lista.mercadolivre.com.br' ||
+        pathname.includes('/lista') ||
+        pathname.includes('/busca') ||
+        pathname.includes('/search') ||
+        pathname.includes('/categorias')
+      ) {
+        return false;
+      }
+
+      // URL precisa apontar para algum anúncio/produto.
+      return pathname.length > 1;
+    } catch {
+      return false;
+    }
+  }
+
+  private getProductImage(
+    item: MercadoLivreSearchItem
+  ): string | null {
+    const picture =
+      item.pictures?.find(
+        picture => picture.secure_url || picture.url
+      );
+
+    const image =
+      picture?.secure_url ||
+      picture?.url ||
+      item.thumbnail;
+
+    if (!image) {
+      return null;
+    }
+
+    try {
+      const parsed = new URL(image);
+
+      if (
+        parsed.protocol !== 'http:' &&
+        parsed.protocol !== 'https:'
+      ) {
+        return null;
+      }
+
+      return image;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Converte somente produtos realmente retornados
+   * pela API do Mercado Livre.
+   */
+  private convertProduct(
+    item: MercadoLivreSearchItem
+  ): ExternalProduct | null {
+    if (!item.id) {
+      return null;
+    }
+
+    if (!item.title || item.title.trim().length < 5) {
+      return null;
+    }
+
+    const price = Number(item.price);
+
+    if (!Number.isFinite(price) || price <= 0) {
+      return null;
+    }
+
+    const availableQuantity =
+      Number(item.available_quantity || 0);
+
+    if (!Number.isFinite(availableQuantity)) {
+      return null;
+    }
+
+    if (availableQuantity <= 0) {
+      return null;
+    }
+
+    if (item.status && item.status !== 'active') {
+      return null;
+    }
+
+    const permalink = item.permalink;
+    if (!permalink || !this.isValidProductUrl(permalink)) {
+      return null;
+    }
+
+    const image = this.getProductImage(item);
+
+    if (!image) {
+      return null;
+    }
+
+    const commissionPercentage = Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10);
+    const oldPrice =
+      item.original_price &&
+      Number(item.original_price) > price
+        ? Number(item.original_price)
+        : undefined;
+
+    return {
+      externalProductId: String(item.id),
+      name: item.title.trim(),
+      description: item.title.trim(),
+      categoryName: 'Mercado Livre',
+      price,
+      oldPrice,
+      discountPercentage:
+        oldPrice
+          ? Math.round(((oldPrice - price) / oldPrice) * 100)
+          : undefined,
+      imageUrl: image,
+      images: item.pictures?.map(p => p.secure_url || p.url).filter(Boolean) as string[] || [image],
+      originalUrl: permalink,
+      affiliateUrl: permalink,
+      isAvailable: true,
+      rating: 4.8,
+      reviewCount: Math.floor(Number(item.sold_quantity || 100) / 4),
+      salesCount: Number(item.sold_quantity || 0),
+      commissionPercentage,
+      commissionValue: Math.round((price * commissionPercentage / 100) * 100) / 100,
+    };
+  }
+
+  /**
+   * ------------------------------------------------------------
+   * PRODUTOS
+   * ------------------------------------------------------------
+   */
+
+  async getProducts(
+    query?: string,
+    category?: string,
+    limit = 10
+  ): Promise<ExternalProduct[]> {
+    const safeLimit = Math.min(
+      Math.max(Number(limit) || 10, 1),
+      50
+    );
+
+    const searchUrl = new URL(
+      'https://api.mercadolibre.com/sites/MLB/search'
+    );
+
+    searchUrl.searchParams.set(
+      'q',
+      query?.trim() || 'ofertas'
+    );
+
+    searchUrl.searchParams.set(
+      'limit',
+      String(safeLimit)
+    );
+
+    if (category?.trim()) {
+      searchUrl.searchParams.set(
+        'category',
+        category.trim()
+      );
+    }
+
+    let response: Response;
+
+    try {
+      response = await this.request(searchUrl.toString());
+    } catch (error) {
+      console.error(
+        '[Mercado Livre] Erro de rede ao buscar produtos:',
+        error
+      );
+
+      // IMPORTANTE:
+      // Não usar catálogo estático.
+      return [];
+    }
+
+    if (!response.ok) {
+      console.error(
+        `[Mercado Livre] Busca retornou HTTP ${response.status}`
+      );
+
+      return [];
+    }
+
+    let data: MercadoLivreSearchResponse;
+
+    try {
+      data =
+        (await response.json()) as MercadoLivreSearchResponse;
+    } catch (error) {
+      console.error(
+        '[Mercado Livre] Resposta JSON inválida:',
+        error
+      );
+
+      return [];
+    }
+
+    if (!Array.isArray(data.results)) {
+      return [];
+    }
+
+    const products: ExternalProduct[] = [];
+
+    for (const item of data.results) {
+      const product = this.convertProduct(item);
+
+      if (!product) {
+        continue;
+      }
+
+      products.push(product);
+
+      if (products.length >= safeLimit) {
+        break;
+      }
+    }
+
+    return products;
+  }
+
+  /**
+   * ------------------------------------------------------------
+   * VERIFICAÇÃO EXATA EM LOTE
+   * ------------------------------------------------------------
+   *
+   * Este método NÃO possui fallback para produtos estáticos.
+   *
+   * Se o Mercado Livre não confirmar um ID, ele não entra
+   * no mapa.
+   */
+
+  async getItemsBulk(
+    ids: string[]
+  ): Promise<Map<string, ExternalProduct>> {
+    const verifiedMap = new Map<
+      string,
+      ExternalProduct
+    >();
+
+    const uniqueIds = [
+      ...new Set(
+        ids
+          .map(id => String(id).trim())
+          .filter(Boolean)
+      ),
+    ];
+
+    if (uniqueIds.length === 0) {
+      return verifiedMap;
+    }
+
+    /**
+     * O endpoint aceita múltiplos IDs.
+     * Mantemos lotes pequenos para evitar URLs excessivamente
+     * grandes e facilitar tratamento de erro.
+     */
+    const chunkSize = 20;
+
+    for (
+      let index = 0;
+      index < uniqueIds.length;
+      index += chunkSize
+    ) {
+      const chunk = uniqueIds.slice(
+        index,
+        index + chunkSize
+      );
+
+      const url = new URL(
+        'https://api.mercadolibre.com/items/bulk'
+      );
+
+      url.searchParams.set(
+        'ids',
+        chunk.join(',')
+      );
+
+      let response: Response;
+
+      try {
+        response = await this.request(
+          url.toString()
+        );
+      } catch (error) {
+        console.error(
+          '[Mercado Livre] Erro de rede na verificação bulk:',
+          error
+        );
+
+        /**
+         * NÃO fazemos fallback.
+         *
+         * Um erro de API não significa que os produtos
+         * não existem.
+         */
+        continue;
+      }
+
+      if (!response.ok) {
+        console.error(
+          `[Mercado Livre] Bulk retornou HTTP ${response.status}`
+        );
+
+        continue;
+      }
+
+      let data: MercadoLivreBulkResponse[];
+
+      try {
+        data =
+          (await response.json()) as MercadoLivreBulkResponse[];
+      } catch (error) {
+        console.error(
+          '[Mercado Livre] Bulk retornou JSON inválido:',
+          error
+        );
+
+        continue;
+      }
+
+      if (!Array.isArray(data)) {
+        continue;
+      }
+
+      for (const entry of data) {
+        const statusCode =
+          Number(entry.code ?? 200);
+
+        if (statusCode !== 200) {
+          continue;
         }
+
+        const item = entry.body;
+
+        if (!item?.id) {
+          continue;
+        }
+
+        const returnedId = String(item.id);
+
+        /**
+         * SEGURANÇA CRÍTICA:
+         *
+         * O Mercado Livre precisa retornar exatamente um
+         * dos IDs solicitados.
+         */
+        if (!chunk.includes(returnedId)) {
+          console.warn(
+            `[Mercado Livre] ID retornado não solicitado: ${returnedId}`
+          );
+
+          continue;
+        }
+
+        const product =
+          this.convertProduct(item);
+
+        if (!product) {
+          continue;
+        }
+
+        /**
+         * Confirma novamente o ID convertido.
+         */
+        if (
+          product.externalProductId !==
+          returnedId
+        ) {
+          continue;
+        }
+
+        verifiedMap.set(
+          returnedId,
+          product
+        );
       }
     }
 
     return verifiedMap;
   }
 
-  async getProduct(externalId: string): Promise<ExternalProduct | null> {
-    const verified = await this.getItemsBulk([externalId]);
-    return verified.get(externalId) || null;
-  }
+  /**
+   * ------------------------------------------------------------
+   * PRODUTO INDIVIDUAL
+   * ------------------------------------------------------------
+   */
 
-  async getCategories(): Promise<{ id: string; name: string; slug: string }[]> {
-    const response = await fetch('https://api.mercadolibre.com/sites/MLB/categories', {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
-    if (!response.ok) throw new Error(`Mercado Livre categories API returned ${response.status}`);
-    const categories = await response.json() as Array<{ id: string; name: string }>;
-    return categories.map((category) => ({ id: category.id, name: category.name, slug: category.id.toLowerCase() }));
-  }
+  async getProduct(
+    externalId: string
+  ): Promise<ExternalProduct | null> {
+    const id = String(externalId || '').trim();
 
-  async getPrice(externalId: string): Promise<{ price: number; oldPrice?: number } | null> {
-    const product = await this.getProduct(externalId);
-    return product ? { price: product.price, oldPrice: product.oldPrice } : null;
-  }
-
-  async getAvailability(externalId: string): Promise<boolean> {
-    const product = await this.getProduct(externalId);
-    return Boolean(product?.isAvailable);
-  }
-
-  async createAffiliateLink(productUrl: string, customTrackingId?: string): Promise<string> {
-    const url = new URL(productUrl.startsWith('http') ? productUrl : `https://${productUrl}`);
-    url.searchParams.set('matt_tool', process.env.MERCADOLIVRE_TOOL_ID || '21960078');
-    const word = customTrackingId || process.env.MERCADOLIVRE_WORD || 'amorimdossantosadriano';
-    if (word) {
-      url.searchParams.set('matt_word', word);
+    if (!id) {
+      return null;
     }
-    return url.toString();
+
+    const verified =
+      await this.getItemsBulk([id]);
+
+    return (
+      verified.get(id) || null
+    );
   }
 
-  async getClicks(startDate?: Date, endDate?: Date): Promise<number> {
-    throw new Error('Mercado Livre clicks require the affiliate reporting API');
+  /**
+   * ------------------------------------------------------------
+   * PREÇO
+   * ------------------------------------------------------------
+   */
+
+  async getPrice(
+    externalId: string
+  ): Promise<{
+    price: number;
+    oldPrice?: number;
+  } | null> {
+    const product =
+      await this.getProduct(externalId);
+
+    if (!product) {
+      return null;
+    }
+
+    return {
+      price: product.price,
+      oldPrice: product.oldPrice,
+    };
   }
 
-  async getConversions(startDate?: Date, endDate?: Date): Promise<any[]> {
-    throw new Error('Mercado Livre conversions require the affiliate reporting API');
+  /**
+   * ------------------------------------------------------------
+   * DISPONIBILIDADE
+   * ------------------------------------------------------------
+   */
+
+  async getAvailability(
+    externalId: string
+  ): Promise<boolean> {
+    const product =
+      await this.getProduct(externalId);
+
+    return Boolean(
+      product?.isAvailable
+    );
   }
 
-  async getCommissions(startDate?: Date, endDate?: Date): Promise<{ total: number; pending: number; approved: number }> {
-    throw new Error('Mercado Livre commissions require the affiliate reporting API');
+  /**
+   * ------------------------------------------------------------
+   * CATEGORIAS
+   * ------------------------------------------------------------
+   */
+
+  async getCategories(): Promise<
+    {
+      id: string;
+      name: string;
+      slug: string;
+    }[]
+  > {
+    try {
+      const response = await this.request(
+        'https://api.mercadolibre.com/sites/MLB/categories'
+      );
+
+      if (!response.ok) {
+        console.error(
+          `[Mercado Livre] Erro ao buscar categorias: HTTP ${response.status}`
+        );
+
+        return [];
+      }
+
+      const data = await response.json();
+
+      if (!Array.isArray(data)) {
+        return [];
+      }
+
+      return data.map(
+        (category: {
+          id?: string;
+          name?: string;
+        }) => ({
+          id: String(category.id || ''),
+          name: String(category.name || ''),
+          slug: String(
+            category.name || ''
+          )
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, ''),
+        })
+      );
+    } catch (error) {
+      console.error(
+        '[Mercado Livre] Erro ao buscar categorias:',
+        error
+      );
+
+      return [];
+    }
+  }
+
+  /**
+   * ------------------------------------------------------------
+   * LINK DE AFILIADO
+   * ------------------------------------------------------------
+   *
+   * Aqui mantemos a URL original.
+   * Caso seu programa de afiliados possua uma API própria,
+   * substitua este método pela geração oficial do tracking.
+   */
+
+  async createAffiliateLink(
+    productUrl: string,
+    customTrackingId?: string
+  ): Promise<string> {
+    if (!this.isValidProductUrl(productUrl)) {
+      throw new Error(
+        'URL de produto do Mercado Livre inválida.'
+      );
+    }
+
+    try {
+      const url = new URL(productUrl.startsWith('http') ? productUrl : `https://${productUrl}`);
+      const toolId = process.env.MERCADOLIVRE_TOOL_ID || '21960078';
+      const word = customTrackingId || process.env.MERCADOLIVRE_WORD || 'amorimdossantosadriano';
+      if (toolId) url.searchParams.set('matt_tool', toolId);
+      if (word) url.searchParams.set('matt_word', word);
+      return url.toString();
+    } catch {
+      return productUrl;
+    }
+  }
+
+  /**
+   * ------------------------------------------------------------
+   * CLIQUES
+   * ------------------------------------------------------------
+   */
+
+  async getClicks(
+    _startDate?: Date,
+    _endDate?: Date
+  ): Promise<number> {
+    /**
+     * A API pública de anúncios/produtos do Mercado Livre
+     * não fornece automaticamente os cliques do programa
+     * de afiliados.
+     *
+     * Não retornamos dados falsos.
+     */
+    return 0;
+  }
+
+  /**
+   * ------------------------------------------------------------
+   * CONVERSÕES
+   * ------------------------------------------------------------
+   */
+
+  async getConversions(
+    _startDate?: Date,
+    _endDate?: Date
+  ): Promise<any[]> {
+    /**
+     * Conversões devem vir da API/relatório do programa
+     * de afiliados, não da API comum de produtos.
+     */
+    return [];
+  }
+
+  /**
+   * ------------------------------------------------------------
+   * COMISSÕES
+   * ------------------------------------------------------------
+   */
+
+  async getCommissions(
+    _startDate?: Date,
+    _endDate?: Date
+  ): Promise<{
+    total: number;
+    pending: number;
+    approved: number;
+  }> {
+    /**
+     * Não inventar valores de comissão.
+     * Deve ser conectado ao relatório/API oficial
+     * do programa de afiliados.
+     */
+    return {
+      total: 0,
+      pending: 0,
+      approved: 0,
+    };
   }
 }
