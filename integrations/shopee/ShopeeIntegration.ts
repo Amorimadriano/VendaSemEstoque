@@ -1,87 +1,6 @@
 import { MarketplaceIntegration, ProductVerificationResult } from '../MarketplaceIntegration';
 import { ExternalProduct } from '../../types';
 
-export const REAL_SHOPEE_TOP_PRODUCTS = [
-  {
-    id: 'SHO23918239128',
-    title: 'Fone de Ouvido Bluetooth Sem Fio TWS F9-5 Display Digital LED com Microfone',
-    permalink: 'https://shopee.com.br/product/239182391/23918239128',
-    image: 'https://cf.shopee.com.br/file/br-11134207-7r98o-lm1j70z0z6a71e',
-    price: 34.90,
-    original_price: 69.90,
-    sales_count: 58000,
-    rating: 4.8,
-    reviews: 18200,
-    category_name: 'Áudio & Som',
-    brand: 'TWS',
-  },
-  {
-    id: 'SHO28491829381',
-    title: 'Smartwatch Relógio Inteligente D20 Y68 Bluetooth Monitor Cardíaco e Passos',
-    permalink: 'https://shopee.com.br/product/284918293/28491829381',
-    image: 'https://cf.shopee.com.br/file/br-11134207-7r98o-llw71n0s21829c',
-    price: 29.90,
-    original_price: 59.90,
-    sales_count: 42000,
-    rating: 4.7,
-    reviews: 12400,
-    category_name: 'Smartwatches',
-    brand: 'Smart Band',
-  },
-  {
-    id: 'SHO29182391029',
-    title: 'Carregador Rápido USB Tipo C Turbo Power 20W Bivolt para Celular',
-    permalink: 'https://shopee.com.br/product/291823910/29182391029',
-    image: 'https://cf.shopee.com.br/file/br-11134207-7r98o-lm5910n829103e',
-    price: 24.90,
-    original_price: 45.00,
-    sales_count: 31000,
-    rating: 4.9,
-    reviews: 8900,
-    category_name: 'Acessórios Celular',
-    brand: 'Fast Charger',
-  },
-  {
-    id: 'SHO39182391028',
-    title: 'Fita LED RGB 5050 5 Metros com Controle Remoto e Fonte Bivolt',
-    permalink: 'https://shopee.com.br/product/391823910/39182391028',
-    image: 'https://cf.shopee.com.br/file/br-11134207-7r98o-ll192837461928',
-    price: 32.90,
-    original_price: 59.00,
-    sales_count: 24000,
-    rating: 4.8,
-    reviews: 6700,
-    category_name: 'Casa Inteligente',
-    brand: 'LED Light',
-  },
-  {
-    id: 'SHO48192839102',
-    title: 'Mini Caixa de Som Bluetooth Portátil Potente À Prova D\'água 5W',
-    permalink: 'https://shopee.com.br/product/481928391/48192839102',
-    image: 'https://cf.shopee.com.br/file/br-11134207-7r98o-lkm18293847192',
-    price: 39.90,
-    original_price: 79.00,
-    sales_count: 19000,
-    rating: 4.8,
-    reviews: 5100,
-    category_name: 'Áudio & Som',
-    brand: 'SoundMini',
-  },
-  {
-    id: 'SHO59182938102',
-    title: 'Suporte Veicular Celular com Trava Automática Saída de Ar e Painel',
-    permalink: 'https://shopee.com.br/product/591829381/59182938102',
-    image: 'https://cf.shopee.com.br/file/br-11134207-7r98o-lq192837461928',
-    price: 21.90,
-    original_price: 39.90,
-    sales_count: 27000,
-    rating: 4.9,
-    reviews: 7300,
-    category_name: 'Acessórios Celular',
-    brand: 'CarHolder',
-  },
-];
-
 type ShopeeNode = {
   itemId?: string | number;
   productName?: string;
@@ -124,7 +43,7 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     return {
       'Content-Type': 'application/json',
       'Authorization': `SHA256 Credential=${this.appId}, Timestamp=${timestamp}, Signature=${signature}`,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     };
   }
 
@@ -163,7 +82,7 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     };
   }
 
-  async getProducts(query?: string, category?: string, limit = 10): Promise<ExternalProduct[]> {
+  async getProducts(query?: string, category?: string, limit = 20): Promise<ExternalProduct[]> {
     if (!this.hasCredentials()) {
       return [];
     }
@@ -192,8 +111,10 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     const payload = JSON.stringify({ query: gqlQuery });
     const headers = await this.generateAuthHeaders(payload);
 
+    const endpoint = 'https://open-api.affiliate.shopee.com.br/graphql';
+
     try {
-      const response = await fetch('https://open-api.affiliate.shopee.com.br/graphql', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers,
         body: payload,
@@ -218,85 +139,21 @@ export class ShopeeIntegration implements MarketplaceIntegration {
         }
       }
     } catch (err) {
-      console.warn('[Shopee] Erro ao buscar produtos na API, utilizando catálogo de contingência:', err);
+      console.warn(`[Shopee] Erro ao buscar produtos em ${endpoint}:`, err);
     }
 
-    // Fallback para catálogo curado de produtos reais e ativos da Shopee
-    const term = (query || '').toLowerCase();
-    const filtered = REAL_SHOPEE_TOP_PRODUCTS.filter(
-      (item) =>
-        !term ||
-        item.title.toLowerCase().includes(term) ||
-        item.category_name.toLowerCase().includes(term) ||
-        item.brand.toLowerCase().includes(term)
-    );
-    const chosen = filtered.length ? filtered : REAL_SHOPEE_TOP_PRODUCTS;
-    const commissionPercentage = 8;
-
-    return chosen.slice(0, safeLimit).map((item) => {
-      const discountPercentage = item.original_price
-        ? Math.round(((item.original_price - item.price) / item.original_price) * 100)
-        : undefined;
-
-      return {
-        externalProductId: item.id,
-        name: item.title,
-        description: `${item.title}. Produto original disponível na Shopee com garantia e envio rápido.`,
-        categoryName: item.category_name,
-        brand: item.brand,
-        imageUrl: item.image,
-        images: [item.image],
-        price: item.price,
-        oldPrice: item.original_price,
-        discountPercentage,
-        rating: item.rating,
-        reviewCount: item.reviews,
-        salesCount: item.sales_count,
-        commissionPercentage,
-        commissionValue: Math.round(((item.price * commissionPercentage) / 100) * 100) / 100,
-        originalUrl: item.permalink,
-        affiliateUrl: item.permalink,
-        isAvailable: true,
-      };
-    });
+    return [];
   }
 
   async verifyProduct(externalId: string): Promise<ProductVerificationResult> {
     const id = String(externalId || '').trim();
     if (!id) return { status: 'NOT_FOUND', reason: 'ID ausente' };
 
-    const fallback = REAL_SHOPEE_TOP_PRODUCTS.find((p) => p.id === id);
-    if (fallback) {
-      return {
-        status: 'VERIFIED',
-        product: {
-          externalProductId: fallback.id,
-          name: fallback.title,
-          description: `${fallback.title}. Produto original disponível na Shopee.`,
-          categoryName: fallback.category_name,
-          brand: fallback.brand,
-          imageUrl: fallback.image,
-          images: [fallback.image],
-          price: fallback.price,
-          oldPrice: fallback.original_price,
-          discountPercentage: fallback.original_price ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100) : undefined,
-          rating: fallback.rating,
-          reviewCount: fallback.reviews,
-          salesCount: fallback.sales_count,
-          commissionPercentage: 8,
-          commissionValue: Math.round(((fallback.price * 8) / 100) * 100) / 100,
-          originalUrl: fallback.permalink,
-          affiliateUrl: fallback.permalink,
-          isAvailable: true,
-        },
-      };
-    }
-
     if (!this.hasCredentials()) {
       return { status: 'ERROR', reason: 'Credenciais da Shopee não configuradas' };
     }
 
-    const products = await this.getProducts(id, undefined, 1);
+    const products = await this.getProducts(id, undefined, 5);
     const item = products.find((p) => p.externalProductId === id);
     if (item) {
       return { status: 'VERIFIED', product: item };
