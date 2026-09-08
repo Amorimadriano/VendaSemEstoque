@@ -48,9 +48,8 @@ export default function ProductCard({ product }: ProductCardProps) {
         currency: 'BRL',
       }).format(product.commissionValue)
     : null;
-  const imageSource = product.marketplace?.slug === 'mercadolivre' && product.imageUrl.includes('mlstatic.com')
-    ? `/api/images/mercadolivre?src=${encodeURIComponent(product.imageUrl)}`
-    : product.imageUrl;
+
+  const imageSource = product.imageUrl ? `/api/images?src=${encodeURIComponent(product.imageUrl)}` : '';
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">

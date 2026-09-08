@@ -81,9 +81,10 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         <div className="space-y-4">
           <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex items-center justify-center min-h-[350px]">
             <img
-              src={images[0] || product.imageUrl}
+              src={images[0] ? `/api/images?src=${encodeURIComponent(images[0])}` : `/api/images?src=${encodeURIComponent(product.imageUrl)}`}
               alt={product.name}
               className="max-h-80 object-contain hover:scale-105 transition-transform duration-300"
+              referrerPolicy="no-referrer"
             />
           </div>
 
@@ -91,7 +92,12 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
             <div className="flex gap-3 overflow-x-auto pb-2">
               {images.map((imgUrl, idx) => (
                 <div key={idx} className="w-16 h-16 rounded-xl border border-gray-200 p-1 shrink-0">
-                  <img src={imgUrl} alt={`${product.name} thumbnail ${idx}`} className="w-full h-full object-contain" />
+                  <img
+                    src={`/api/images?src=${encodeURIComponent(imgUrl)}`}
+                    alt={`${product.name} thumbnail ${idx}`}
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
               ))}
             </div>
