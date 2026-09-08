@@ -42,15 +42,19 @@ export function getCommerceHubStatus(): ConnectorStatus[] {
     },
     {
       channel: 'instagram',
-      ready: false,
+      ready: hasValues(process.env.META_ACCESS_TOKEN, process.env.META_INSTAGRAM_ACCOUNT_ID),
       capabilities: ['criar_conteudo', 'publicar_conteudo'],
-      message: 'Configure a API oficial da Meta e autorização explícita antes de publicar.',
+      message: hasValues(process.env.META_ACCESS_TOKEN, process.env.META_INSTAGRAM_ACCOUNT_ID)
+        ? 'Pronto para publicação via Meta Graph API do Instagram (requer permissão instagram_content_publish).'
+        : 'Configure META_ACCESS_TOKEN e META_INSTAGRAM_ACCOUNT_ID antes de publicar.',
     },
     {
       channel: 'facebook',
-      ready: false,
+      ready: hasValues(process.env.META_ACCESS_TOKEN, process.env.META_FACEBOOK_PAGE_ID),
       capabilities: ['criar_conteudo', 'publicar_conteudo'],
-      message: 'Configure a API oficial da Meta e autorização explícita antes de publicar.',
+      message: hasValues(process.env.META_ACCESS_TOKEN, process.env.META_FACEBOOK_PAGE_ID)
+        ? 'Pronto para publicação de posts e fotos na Página do Facebook.'
+        : 'Configure META_ACCESS_TOKEN e META_FACEBOOK_PAGE_ID antes de publicar.',
     },
     {
       channel: 'site',

@@ -31,12 +31,13 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
     setContents((current) => current.map((item) => item.id === updated.id ? updated : item));
   }
 
-  async function publishToFacebook(content: Content) {
+  async function publishContent(content: Content) {
     setPublishError('');
+    const channelName = content.channel === 'instagram' ? 'Instagram' : 'Facebook';
     const response = await fetch(`/api/admin/content/${content.id}/publish`, { method: 'POST' });
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
-      setPublishError(result.error || 'Não foi possível publicar no Facebook.');
+      setPublishError(result.error || `Não foi possível publicar no ${channelName}.`);
       return;
     }
     setContents((current) => current.map((item) => item.id === content.id ? { ...item, status: 'PUBLISHED' } : item));
@@ -80,6 +81,6 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
     </form>
     {publishError && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{publishError}</p>}
     {videoError && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{videoError}</p>}
-    <div className="mt-5 space-y-3">{contents.map((content) => <div key={content.id} className="rounded-md border border-gray-200 p-3 text-xs"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{content.product?.name}</strong><span className="rounded-full bg-gray-100 px-2 py-0.5 font-bold">{content.channel} · {content.content_type} · {content.status}</span></div><p className="mt-2 font-semibold text-gray-800">{content.hook}</p><p className="mt-1 text-gray-600">{content.caption}</p><p className="mt-1 text-blue-700">CTA: {content.cta}</p>{content.status === 'DRAFT' && <button onClick={() => approve(content)} className="mt-3 flex items-center gap-1 text-emerald-700 hover:text-emerald-800"><CheckCircle2 className="h-4 w-4" /> Aprovar</button>}{content.status === 'APPROVED' && content.channel === 'facebook' && <div className="mt-3 flex gap-3"><button onClick={() => generateVideo(content)} className="flex items-center gap-1 text-violet-700 hover:text-violet-800"><Send className="h-4 w-4" /> Gerar vídeo</button><button onClick={() => publishToFacebook(content)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800"><Send className="h-4 w-4" /> Publicar no Facebook</button></div>}</div>)}{!contents.length && <p className="text-sm text-gray-500">Nenhum conteúdo preparado.</p>}</div>
+    <div className="mt-5 space-y-3">{contents.map((content) => <div key={content.id} className="rounded-md border border-gray-200 p-3 text-xs"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{content.product?.name}</strong><span className="rounded-full bg-gray-100 px-2 py-0.5 font-bold">{content.channel} · {content.content_type} · {content.status}</span></div><p className="mt-2 font-semibold text-gray-800">{content.hook}</p><p className="mt-1 text-gray-600">{content.caption}</p><p className="mt-1 text-blue-700">CTA: {content.cta}</p>{content.status === 'DRAFT' && <button onClick={() => approve(content)} className="mt-3 flex items-center gap-1 text-emerald-700 hover:text-emerald-800"><CheckCircle2 className="h-4 w-4" /> Aprovar</button>}{content.status === 'APPROVED' && <div className="mt-3 flex gap-3"><button onClick={() => generateVideo(content)} className="flex items-center gap-1 text-violet-700 hover:text-violet-800"><Send className="h-4 w-4" /> Gerar vídeo</button><button onClick={() => publishContent(content)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800"><Send className="h-4 w-4" /> {content.channel === 'instagram' ? 'Publicar no Instagram' : 'Publicar no Facebook'}</button></div>}</div>)}{!contents.length && <p className="text-sm text-gray-500">Nenhum conteúdo preparado.</p>}</div>
   </section>;
 }
