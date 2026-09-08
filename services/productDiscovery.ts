@@ -14,6 +14,41 @@ function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 }
 
+export function inferCategory(title: string, rawCategory?: string): { name: string; slug: string } {
+  const text = `${title} ${rawCategory || ''}`.toLowerCase();
+
+  if (/\b(smartwatch|smart watch|relogio inteligente|redmi watch|galaxy watch|apple watch|band 8|band 9|mi band)\b/.test(text)) {
+    return { name: 'Smartwatches', slug: 'smartwatches' };
+  }
+  if (/\b(iphone|smartphone|celular|galaxy s|galaxy a|redmi note|xiaomi|motorola|poco)\b/.test(text)) {
+    return { name: 'Smartphones', slug: 'smartphones' };
+  }
+  if (/\b(fone|headset|earphone|earbuds|caixa de som|soundbar|jbl|bluetooth|tws|airpods|headphone|som)\b/.test(text)) {
+    return { name: 'Áudio & Som', slug: 'audio-som' };
+  }
+  if (/\b(notebook|laptop|computador|teclado|mouse|hub usb|usb-c|ssd|memoria ram|placa de video|monitor|roteador|informática|informatica)\b/.test(text)) {
+    return { name: 'Informática', slug: 'informatica' };
+  }
+  if (/\b(carregador|cabo usb|cabo tipo c|power bank|suporte celular|pelicula|capinha|adaptador|gan)\b/.test(text)) {
+    return { name: 'Acessórios Celular', slug: 'acessorios-celular' };
+  }
+  if (/\b(alexa|echo dot|lampada|fita led|led|tomada inteligente|sensor|tuya|sonoff|smart home|camera)\b/.test(text)) {
+    return { name: 'Casa Inteligente', slug: 'casa-inteligente' };
+  }
+  if (/\b(air fryer|fritadeira|cafeteira|aspirador|liquidificador|batedeira|micro-ondas|eletrodomestico|eletrodoméstico)\b/.test(text)) {
+    return { name: 'Eletrodomésticos', slug: 'eletrodomesticos' };
+  }
+  if (/\b(smart tv|televisao|televisor|tv 4k|tv 50|tv 55|tv 65|fire tv|chromecast|roku|video|vídeo)\b/.test(text)) {
+    return { name: 'TV & Vídeo', slug: 'tv-video' };
+  }
+  if (/\b(gamer|gamepad|controle ps5|controle xbox|nintendo|switch|jogos)\b/.test(text)) {
+    return { name: 'Gamer', slug: 'gamer' };
+  }
+
+  const baseName = rawCategory && rawCategory !== 'Mercado Livre' && rawCategory !== 'AliExpress' ? rawCategory : 'Eletrônicos';
+  return { name: baseName, slug: toSlug(baseName) };
+}
+
 type ValidationResult = {
   isValid: boolean;
   reason?: string;
@@ -77,9 +112,9 @@ function optimizeTitle(product: ExternalProduct) {
   return title.length <= 120 ? title : `${title.slice(0, 117).trim()}...`;
 }
 
-function optimizeDescription(product: ExternalProduct) {
+function optimizeDescription(product: ExternalProduct, marketplaceName = 'site parceiro') {
   const description = product.description.replace(/\s+/g, ' ').trim();
-  return description.length >= 80 ? description : `${description || product.name}. Confira preço, disponibilidade e condições diretamente no Mercado Livre.`;
+  return description.length >= 80 ? description : `${description || product.name}. Confira preço, disponibilidade e condições diretamente no ${marketplaceName}.`;
 }
 
 function calculateRanking(product: ExternalProduct, commissionPercentage: number) {
@@ -97,9 +132,15 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
   const { data: marketplace, error: marketplaceError } = await supabase.from('marketplaces').upsert({ id: currentMarketplace?.id || crypto.randomUUID(), name: marketplaceName, slug: marketplaceSlug, affiliate_status: 'ACTIVE', api_status: 'ACTIVE', created_at: now, updated_at: now }, { onConflict: 'slug' }).select('id').single();
   if (marketplaceError) throw marketplaceError;
 
-  const categorySlug = toSlug(product.categoryName || 'ofertas');
-  const { data: currentCategory } = await supabase.from('categories').select('id').eq('slug', categorySlug).maybeSingle();
-  const { data: category, error: categoryError } = await supabase.from('categories').upsert({ id: currentCategory?.id || crypto.randomUUID(), name: product.categoryName || 'Ofertas', slug: categorySlug, created_at: now, updated_at: now }, { onConflict: 'slug' }).select('id').single();
+  const inferred = inferCategory(product.name, product.categoryName);
+  const { data: currentCategory } = await supabase.from('categories').select('id').eq('slug', inferred.slug).maybeSingle();
+  const { data: category, error: categoryError } = await supabase.from('categories').upsert({
+    id: currentCategory?.id || crypto.randomUUID(),
+    name: inferred.name,
+    slug: inferred.slug,
+    created_at: now,
+    updated_at: now,
+  }, { onConflict: 'slug' }).select('id').single();
   if (categoryError) throw categoryError;
 
   const affiliateUrl = await getMarketplaceIntegration(marketplaceSlug).createAffiliateLink(product.originalUrl, product.externalProductId);
@@ -107,7 +148,7 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
   const commissionPercentage = product.commissionPercentage || DEFAULT_COMMISSION;
   const ranking = calculateRanking(product, commissionPercentage);
   const optimizedTitle = optimizeTitle(product);
-  const optimizedDescription = optimizeDescription(product);
+  const optimizedDescription = optimizeDescription(product, marketplaceName);
 
   const { data: currentProduct } = await supabase
     .from('products')
