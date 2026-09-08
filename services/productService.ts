@@ -88,9 +88,17 @@ export async function getProductBySlug(slug: string) {
 
 export async function getCategories() {
   const supabase = getSupabase();
-  const { data, error } = await supabase.from('categories').select('*, products(count)').order('name');
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*, products(count)')
+    .order('name');
   if (error) throw error;
-  return (data || []).map((category: any) => ({ ...category, _count: { products: category.products?.[0]?.count || 0 } }));
+  return (data || [])
+    .map((category: any) => ({
+      ...category,
+      _count: { products: category.products?.[0]?.count || 0 },
+    }))
+    .filter((category: any) => category._count.products > 0);
 }
 
 export async function getMarketplaces() {

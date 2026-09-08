@@ -210,19 +210,22 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
   const rawCandidates: ExternalProduct[] = [];
   const errors: string[] = [];
 
-  // ETAPA 1: Busca de candidatos nos termos configurados
-  for (const search of SEARCHES) {
+  // ETAPA 1: Busca de candidatos nos termos configurados + catálogo geral
+  const searchTerms = ['', ...SEARCHES];
+  for (const search of searchTerms) {
     try {
-      const products = await integration.getProducts(search, undefined, 20);
+      const products = await integration.getProducts(search || undefined, undefined, 20);
       for (const product of products) {
         if (product && product.externalProductId) {
           rawCandidates.push(product);
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`"${search}": ${message}`);
-      console.warn(`Search failed for ${marketplaceSlug}/${search}:`, error);
+      if (search) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(`"${search}": ${message}`);
+        console.warn(`Search failed for ${marketplaceSlug}/${search}:`, error);
+      }
     }
   }
 

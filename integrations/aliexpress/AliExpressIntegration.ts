@@ -273,37 +273,38 @@ export class AliExpressIntegration implements MarketplaceIntegration {
       (p) => p.id === externalId || p.id === id || p.id === `ALI${id}`
     );
 
+    if (fallback) {
+      const commissionPercentage = Number(
+        process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8
+      );
+      return {
+        status: 'VERIFIED',
+        product: {
+          externalProductId: fallback.id,
+          name: fallback.title,
+          description: `${fallback.title}. Produto original com envio rápido para o Brasil, garantia e suporte direto no AliExpress.`,
+          categoryName: fallback.category_name,
+          brand: fallback.brand,
+          imageUrl: fallback.image,
+          images: [fallback.image],
+          price: fallback.price,
+          oldPrice: fallback.original_price,
+          discountPercentage: fallback.original_price
+            ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100)
+            : undefined,
+          rating: fallback.rating,
+          reviewCount: fallback.reviews,
+          salesCount: fallback.sales_count,
+          commissionPercentage,
+          commissionValue: Math.round(((fallback.price * commissionPercentage) / 100) * 100) / 100,
+          originalUrl: fallback.permalink,
+          affiliateUrl: `${fallback.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendanew'}`,
+          isAvailable: true,
+        },
+      };
+    }
+
     if (!this.hasCredentials()) {
-      if (fallback) {
-        const commissionPercentage = Number(
-          process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8
-        );
-        return {
-          status: 'VERIFIED',
-          product: {
-            externalProductId: fallback.id,
-            name: fallback.title,
-            description: `${fallback.title}. Produto original com envio rápido para o Brasil, garantia e suporte direto no AliExpress.`,
-            categoryName: fallback.category_name,
-            brand: fallback.brand,
-            imageUrl: fallback.image,
-            images: [fallback.image],
-            price: fallback.price,
-            oldPrice: fallback.original_price,
-            discountPercentage: fallback.original_price
-              ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100)
-              : undefined,
-            rating: fallback.rating,
-            reviewCount: fallback.reviews,
-            salesCount: fallback.sales_count,
-            commissionPercentage,
-            commissionValue: Math.round(((fallback.price * commissionPercentage) / 100) * 100) / 100,
-            originalUrl: fallback.permalink,
-            affiliateUrl: `${fallback.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendanew'}`,
-            isAvailable: true,
-          },
-        };
-      }
       return {
         status: 'ERROR',
         reason: 'Credenciais do AliExpress não configuradas para consulta de ID',
@@ -331,32 +332,6 @@ export class AliExpressIntegration implements MarketplaceIntegration {
       );
 
       if (response.status === 429 || response.status >= 500) {
-        if (fallback) {
-          const commissionPercentage = Number(process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
-          return {
-            status: 'VERIFIED',
-            product: {
-              externalProductId: fallback.id,
-              name: fallback.title,
-              description: `${fallback.title}. Produto original com envio rápido para o Brasil.`,
-              categoryName: fallback.category_name,
-              brand: fallback.brand,
-              imageUrl: fallback.image,
-              images: [fallback.image],
-              price: fallback.price,
-              oldPrice: fallback.original_price,
-              discountPercentage: fallback.original_price ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100) : undefined,
-              rating: fallback.rating,
-              reviewCount: fallback.reviews,
-              salesCount: fallback.sales_count,
-              commissionPercentage,
-              commissionValue: Math.round(((fallback.price * commissionPercentage) / 100) * 100) / 100,
-              originalUrl: fallback.permalink,
-              affiliateUrl: `${fallback.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendanew'}`,
-              isAvailable: true,
-            },
-          };
-        }
         return {
           status: 'ERROR',
           reason: `Falha temporária na API do AliExpress (HTTP ${response.status})`,
@@ -364,32 +339,6 @@ export class AliExpressIntegration implements MarketplaceIntegration {
       }
 
       if (!response.ok) {
-        if (fallback) {
-          const commissionPercentage = Number(process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
-          return {
-            status: 'VERIFIED',
-            product: {
-              externalProductId: fallback.id,
-              name: fallback.title,
-              description: `${fallback.title}. Produto original com envio rápido para o Brasil.`,
-              categoryName: fallback.category_name,
-              brand: fallback.brand,
-              imageUrl: fallback.image,
-              images: [fallback.image],
-              price: fallback.price,
-              oldPrice: fallback.original_price,
-              discountPercentage: fallback.original_price ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100) : undefined,
-              rating: fallback.rating,
-              reviewCount: fallback.reviews,
-              salesCount: fallback.sales_count,
-              commissionPercentage,
-              commissionValue: Math.round(((fallback.price * commissionPercentage) / 100) * 100) / 100,
-              originalUrl: fallback.permalink,
-              affiliateUrl: `${fallback.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendanew'}`,
-              isAvailable: true,
-            },
-          };
-        }
         return {
           status: 'ERROR',
           reason: `Resposta HTTP ${response.status} da API do AliExpress`,
@@ -398,32 +347,6 @@ export class AliExpressIntegration implements MarketplaceIntegration {
 
       const text = await response.text();
       if (!text.startsWith('{') && !text.startsWith('[')) {
-        if (fallback) {
-          const commissionPercentage = Number(process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
-          return {
-            status: 'VERIFIED',
-            product: {
-              externalProductId: fallback.id,
-              name: fallback.title,
-              description: `${fallback.title}. Produto original com envio rápido para o Brasil.`,
-              categoryName: fallback.category_name,
-              brand: fallback.brand,
-              imageUrl: fallback.image,
-              images: [fallback.image],
-              price: fallback.price,
-              oldPrice: fallback.original_price,
-              discountPercentage: fallback.original_price ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100) : undefined,
-              rating: fallback.rating,
-              reviewCount: fallback.reviews,
-              salesCount: fallback.sales_count,
-              commissionPercentage,
-              commissionValue: Math.round(((fallback.price * commissionPercentage) / 100) * 100) / 100,
-              originalUrl: fallback.permalink,
-              affiliateUrl: `${fallback.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendanew'}`,
-              isAvailable: true,
-            },
-          };
-        }
         return {
           status: 'ERROR',
           reason: 'Resposta não-JSON da API do AliExpress (possível WAF/bloqueio temporário)',
@@ -469,32 +392,6 @@ export class AliExpressIntegration implements MarketplaceIntegration {
         product: converted,
       };
     } catch (err) {
-      if (fallback) {
-        const commissionPercentage = Number(process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
-        return {
-          status: 'VERIFIED',
-          product: {
-            externalProductId: fallback.id,
-            name: fallback.title,
-            description: `${fallback.title}. Produto original com envio rápido para o Brasil.`,
-            categoryName: fallback.category_name,
-            brand: fallback.brand,
-            imageUrl: fallback.image,
-            images: [fallback.image],
-            price: fallback.price,
-            oldPrice: fallback.original_price,
-            discountPercentage: fallback.original_price ? Math.round(((fallback.original_price - fallback.price) / fallback.original_price) * 100) : undefined,
-            rating: fallback.rating,
-            reviewCount: fallback.reviews,
-            salesCount: fallback.sales_count,
-            commissionPercentage,
-            commissionValue: Math.round(((fallback.price * commissionPercentage) / 100) * 100) / 100,
-            originalUrl: fallback.permalink,
-            affiliateUrl: `${fallback.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendanew'}`,
-            isAvailable: true,
-          },
-        };
-      }
       const msg = err instanceof Error ? err.message : String(err);
       return {
         status: 'ERROR',
