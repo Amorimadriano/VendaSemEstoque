@@ -24,9 +24,11 @@ export function getCommerceHubStatus(): ConnectorStatus[] {
     },
     {
       channel: 'shopee',
-      ready: false,
-      capabilities: [],
-      message: 'Modo afiliado: o conector Shopee usa dados simulados e permanece desativado até haver credenciais e permissões oficiais do programa de afiliados.',
+      ready: hasValues(process.env.SHOPEE_APP_ID, process.env.SHOPEE_SECRET),
+      capabilities: ['buscar_produtos', 'consultar_preco', 'consultar_estoque'],
+      message: hasValues(process.env.SHOPEE_APP_ID, process.env.SHOPEE_SECRET)
+        ? 'Pronto: credenciais SHOPEE_APP_ID e SHOPEE_SECRET configuradas para a API GraphQL de Afiliados Shopee.'
+        : 'Modo afiliado: configure SHOPEE_APP_ID e SHOPEE_SECRET para ativar o conector oficial da Shopee.',
     },
     {
       channel: 'aliexpress',
