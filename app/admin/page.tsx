@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import MarketingAgent from '@/components/MarketingAgent';
 import ContentApprovalQueue from '@/components/ContentApprovalQueue';
+import MarketplaceSyncStatus from '@/components/MarketplaceSyncStatus';
 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
@@ -266,6 +267,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      <MarketplaceSyncStatus />
       <ContentApprovalQueue products={products} />
       <MarketingAgent products={products} summary={summary} />
 
