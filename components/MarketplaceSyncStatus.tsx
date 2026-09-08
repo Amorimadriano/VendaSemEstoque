@@ -66,7 +66,7 @@ export default function MarketplaceSyncStatus() {
         </button>
       </div>
       {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>}
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
         {[...latestByMarketplace.values()].map((log) => {
           const Icon = STATUS_ICON[log.status];
           return (

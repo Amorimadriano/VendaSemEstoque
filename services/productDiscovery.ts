@@ -8,7 +8,7 @@ const MIN_REVIEWS = Number(process.env.PRODUCT_MIN_REVIEWS || 20);
 const DEFAULT_COMMISSION = Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10);
 const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 20);
 const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 15000);
-const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
+const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress,shopee').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
 
 function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
@@ -99,6 +99,13 @@ export function validateCandidateProduct(product: ExternalProduct, marketplaceSl
     }
   }
 
+  if (marketplaceSlug === 'shopee') {
+    const shopeeUrl = product.originalUrl.toLowerCase();
+    if (shopeeUrl.includes('/search') || shopeeUrl.includes('/buyer/')) {
+      return { isValid: false, reason: 'URL da Shopee é busca ou inválida' };
+    }
+  }
+
   // 6. Validação de Disponibilidade
   if (!product.isAvailable) {
     return { isValid: false, reason: 'Produto marcado como indisponível ou esgotado' };
@@ -127,7 +134,7 @@ function calculateRanking(product: ExternalProduct, commissionPercentage: number
 async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) {
   const supabase = getSupabase();
   const now = new Date().toISOString();
-  const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : 'Mercado Livre';
+  const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : marketplaceSlug === 'shopee' ? 'Shopee' : 'Mercado Livre';
   const { data: currentMarketplace } = await supabase.from('marketplaces').select('id').eq('slug', marketplaceSlug).maybeSingle();
   const { data: marketplace, error: marketplaceError } = await supabase.from('marketplaces').upsert({ id: currentMarketplace?.id || crypto.randomUUID(), name: marketplaceName, slug: marketplaceSlug, affiliate_status: 'ACTIVE', api_status: 'ACTIVE', created_at: now, updated_at: now }, { onConflict: 'slug' }).select('id').single();
   if (marketplaceError) throw marketplaceError;
@@ -216,6 +223,9 @@ type MarketplaceSyncLog = {
 function checkMarketplaceCredentials(marketplaceSlug: string): string | null {
   if (marketplaceSlug === 'aliexpress' && (!process.env.ALIEXPRESS_APP_KEY || !process.env.ALIEXPRESS_APP_SECRET || !process.env.ALIEXPRESS_TRACKING_ID)) {
     return 'AliExpress não configurado: cadastre ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET e ALIEXPRESS_TRACKING_ID nas variáveis de ambiente.';
+  }
+  if (marketplaceSlug === 'shopee' && (!process.env.SHOPEE_APP_ID || !process.env.SHOPEE_SECRET)) {
+    return 'Shopee não configurado: cadastre SHOPEE_APP_ID e SHOPEE_SECRET nas variáveis de ambiente.';
   }
   return null;
 }
