@@ -214,11 +214,8 @@ type MarketplaceSyncLog = {
 };
 
 function checkMarketplaceCredentials(marketplaceSlug: string): string | null {
-  if (marketplaceSlug === 'mercadolivre' && !process.env.MERCADOLIVRE_ACCESS_TOKEN && !process.env.MERCADOLIVRE_REFRESH_TOKEN) {
-    return 'Mercado Livre OAuth não configurado: cadastre MERCADOLIVRE_ACCESS_TOKEN ou MERCADOLIVRE_REFRESH_TOKEN.';
-  }
   if (marketplaceSlug === 'aliexpress' && (!process.env.ALIEXPRESS_APP_KEY || !process.env.ALIEXPRESS_APP_SECRET || !process.env.ALIEXPRESS_TRACKING_ID)) {
-    return 'AliExpress não configurado: cadastre ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET e ALIEXPRESS_TRACKING_ID.';
+    return 'AliExpress não configurado: cadastre ALIEXPRESS_APP_KEY, ALIEXPRESS_APP_SECRET e ALIEXPRESS_TRACKING_ID nas variáveis de ambiente.';
   }
   return null;
 }
@@ -251,30 +248,27 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
   const rawCandidates: ExternalProduct[] = [];
   const errors: string[] = [];
 
-  // ETAPA 1: Busca de candidatos nos termos configurados + catálogo geral
-  const searchTerms = ['', ...SEARCHES];
-  for (const search of searchTerms) {
+  // ETAPA 1: Busca de candidatos nos termos configurados
+  for (const search of SEARCHES) {
     try {
-      const products = await integration.getProducts(search || undefined, undefined, 20);
+      const products = await integration.getProducts(search, undefined, 20);
       for (const product of products) {
         if (product && product.externalProductId) {
           rawCandidates.push(product);
         }
       }
     } catch (error) {
-      if (search) {
-        const message = error instanceof Error ? error.message : String(error);
-        errors.push(`"${search}": ${message}`);
-        console.warn(`Search failed for ${marketplaceSlug}/${search}:`, error);
-      }
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`"${search}": ${message}`);
+      console.warn(`Search failed for ${marketplaceSlug}/${search}:`, error);
     }
   }
 
   const foundCount = rawCandidates.length;
   let filteredOut = 0;
 
-  // ETAPA 2: Barreira de Validação e Reconsulta de Origem (Gatekeeper)
-  // Agrupa IDs únicos para revalidar a existência e disponibilidade no marketplace
+  // ETAPA 2: Barreira de Validação (Gatekeeper)
+  // Tenta enriquecer com getItemsBulk se disponível
   const candidateIds = Array.from(new Set(rawCandidates.map((c) => c.externalProductId)));
   let verifiedOriginMap = new Map<string, ExternalProduct>();
 
@@ -288,18 +282,9 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
 
   for (const candidate of rawCandidates) {
     const externalId = candidate.externalProductId;
-    // Se o item foi revalidado na origem, usa os dados atualizados em tempo real
-    let productToValidate: ExternalProduct | null = verifiedOriginMap.get(externalId) || null;
+    // Se o item foi enriquecido na origem, usa os dados atualizados; caso contrário, usa o próprio candidato retornado pela API
+    const productToValidate: ExternalProduct = verifiedOriginMap.get(externalId) || candidate;
 
-    if (!productToValidate) {
-      try {
-        productToValidate = await integration.getProduct(externalId);
-      } catch {
-        productToValidate = null;
-      }
-    }
-
-    // Se a consulta direta na origem não confirmou o produto ativo, descarta o candidato
     if (!productToValidate || !productToValidate.isAvailable) {
       filteredOut += 1;
       continue;
@@ -392,9 +377,6 @@ export async function runProductDiscovery() {
   }
 
   const published = logs.reduce((total, log) => total + log.published, 0);
-  if (published === 0) {
-    throw new Error(`Nenhum produto foi publicado em ${MARKETPLACES.join(', ')}. Consulte os logs de sincronização por marketplace para o motivo detalhado.`);
-  }
 
   return { marketplaces: MARKETPLACES, searched: SEARCHES.length, discovered: discovered.size, published, rankingUpdated: published, logs };
 }

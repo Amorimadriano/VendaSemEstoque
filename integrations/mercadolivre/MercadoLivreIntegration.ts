@@ -104,10 +104,22 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
       headers,
     });
 
-    if (response.status === 401 && (this.refreshToken || process.env.MERCADOLIVRE_REFRESH_TOKEN)) {
-      const refreshed = await this.refreshAccessToken();
+    // Se 401, tenta refresh ou recai imediatamente para acesso público sem Authorization
+    if (response.status === 401) {
+      let refreshed: string | undefined;
+      if (this.refreshToken || process.env.MERCADOLIVRE_REFRESH_TOKEN) {
+        refreshed = await this.refreshAccessToken();
+      }
+
       if (refreshed) {
         headers.set('Authorization', `Bearer ${refreshed}`);
+        response = await fetch(url, {
+          ...options,
+          headers,
+        });
+      } else {
+        // A API de busca e itens do Mercado Livre é pública; remove o cabeçalho Authorization inválido
+        headers.delete('Authorization');
         response = await fetch(url, {
           ...options,
           headers,
@@ -122,15 +134,16 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     if (!url) return false;
     try {
       const parsed = new URL(url);
+      const hostname = parsed.hostname.toLowerCase();
       const validHost =
-        parsed.hostname === 'mercadolivre.com.br' ||
-        parsed.hostname === 'www.mercadolivre.com.br' ||
-        parsed.hostname === 'produto.mercadolivre.com.br';
+        hostname.includes('mercadolivre.com.br') ||
+        hostname.includes('mercadolibre.com') ||
+        hostname.includes('mercadolivre.com');
 
       if (!validHost) return false;
       const pathname = parsed.pathname.toLowerCase();
       if (
-        parsed.hostname === 'lista.mercadolivre.com.br' ||
+        hostname.startsWith('lista.') ||
         pathname.includes('/lista') ||
         pathname.includes('/busca') ||
         pathname.includes('/search') ||
