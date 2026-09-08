@@ -187,8 +187,72 @@ export class AliExpressIntegration implements MarketplaceIntegration {
   }
 
   async getProduct(externalId: string): Promise<ExternalProduct | null> {
-    const products = await this.getProducts(externalId, undefined, 1);
-    return products[0] || null;
+    if (!externalId) return null;
+    const cleanId = externalId.replace(/^ALI/i, '').trim();
+
+    const hasCredentials = process.env.ALIEXPRESS_APP_KEY && process.env.ALIEXPRESS_APP_SECRET && process.env.ALIEXPRESS_TRACKING_ID;
+    if (hasCredentials) {
+      try {
+        const params: Record<string, string> = {
+          app_key: process.env.ALIEXPRESS_APP_KEY || '',
+          method: 'aliexpress.affiliate.productdetail.get',
+          sign_method: 'hmac-sha256',
+          format: 'json',
+          v: '2.0',
+          timestamp: this.formatTimestamp(new Date()),
+          product_ids: cleanId,
+          ship_to_country: 'BR',
+          target_currency: 'BRL',
+          target_language: 'PT',
+          tracking_id: process.env.ALIEXPRESS_TRACKING_ID || '',
+        };
+        params.sign = await this.sign(params);
+
+        const response = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(params)}`);
+        const text = await response.text();
+        if (text.startsWith('{') || text.startsWith('[')) {
+          const payload = JSON.parse(text);
+          if (!payload.error_response) {
+            const responseData = payload.aliexpress_affiliate_productdetail_get_response || payload;
+            let result = responseData.resp_result?.result || responseData.result || responseData;
+            if (typeof result === 'string') {
+              try { result = JSON.parse(result); } catch {}
+            }
+            const productsPayload = result?.products?.product || result?.products || result?.product || [];
+            const list = Array.isArray(productsPayload) ? productsPayload : [productsPayload];
+            const item = list.find((p: any) => String(p.product_id) === cleanId || String(p.product_id) === externalId) || list[0];
+            if (item && item.product_id) {
+              const price = Number(item.target_sale_price || item.sale_price || item.original_price || 0);
+              const oldPrice = Number(item.target_original_price || item.original_price || 0) || undefined;
+              const imageUrl = item.product_main_image_url || item.image_url || '';
+              return {
+                externalProductId: String(item.product_id),
+                name: item.product_title || item.product_detail_url,
+                description: item.product_title || 'Produto AliExpress',
+                categoryName: 'AliExpress',
+                imageUrl,
+                images: imageUrl ? [imageUrl] : [],
+                price,
+                oldPrice: oldPrice && oldPrice > price ? oldPrice : undefined,
+                discountPercentage: oldPrice && oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : undefined,
+                rating: Number(item.evaluate_rate || 0),
+                reviewCount: Number(item.lastest_volume || 0),
+                commissionPercentage: Number(item.commission_rate || process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8),
+                commissionValue: 0,
+                originalUrl: item.product_detail_url,
+                affiliateUrl: item.promotion_link || item.product_detail_url,
+                isAvailable: price > 0,
+              };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`AliExpress direct product ID lookup failed for ${externalId}:`, err);
+      }
+    }
+
+    // Se a API não encontrar o ID ou não houver credenciais, não faz busca por keyword genérica nem assume disponível
+    return null;
   }
 
   async getCategories(): Promise<{ id: string; name: string; slug: string }[]> {
