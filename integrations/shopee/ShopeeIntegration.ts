@@ -47,6 +47,20 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     };
   }
 
+  async inspectConversionSchema() {
+    if (!this.hasCredentials()) throw new Error('Credenciais da Shopee não configuradas.');
+    const query = `query { __schema { types { name fields { name type { kind name ofType { kind name ofType { kind name } } } } } } }`;
+    const payload = JSON.stringify({ query });
+    const response = await fetch('https://open-api.affiliate.shopee.com.br/graphql', {
+      method: 'POST',
+      headers: await this.generateAuthHeaders(payload),
+      body: payload,
+    });
+    const result = await response.json() as any;
+    if (!response.ok || result?.errors?.length) throw new Error(result?.errors?.[0]?.message || `Shopee schema retornou ${response.status}.`);
+    return (result?.data?.__schema?.types || []).filter((type: any) => /(conversion|order|item|page)/i.test(type.name || ''));
+  }
+
   private convertNode(node: ShopeeNode, categoryName = 'Shopee'): ExternalProduct | null {
     const itemId = String(node.itemId || '').trim();
     const name = String(node.productName || '').trim();
