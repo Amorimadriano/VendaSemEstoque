@@ -47,20 +47,6 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     };
   }
 
-  async inspectConversionSchema() {
-    if (!this.hasCredentials()) throw new Error('Credenciais da Shopee não configuradas.');
-    const query = `query { __schema { types { name fields { name type { kind name ofType { kind name ofType { kind name } } } } } } }`;
-    const payload = JSON.stringify({ query });
-    const response = await fetch('https://open-api.affiliate.shopee.com.br/graphql', {
-      method: 'POST',
-      headers: await this.generateAuthHeaders(payload),
-      body: payload,
-    });
-    const result = await response.json() as any;
-    if (!response.ok || result?.errors?.length) throw new Error(result?.errors?.[0]?.message || `Shopee schema retornou ${response.status}.`);
-    return (result?.data?.__schema?.types || []).filter((type: any) => /(conversion|order|item|page)/i.test(type.name || ''));
-  }
-
   private convertNode(node: ShopeeNode, categoryName = 'Shopee'): ExternalProduct | null {
     const itemId = String(node.itemId || '').trim();
     const name = String(node.productName || '').trim();
@@ -221,7 +207,13 @@ export class ShopeeIntegration implements MarketplaceIntegration {
       const scrollArgument = scrollId ? `, scrollId: ${JSON.stringify(scrollId)}` : '';
       const query = `query {
         conversionReport(purchaseTimeStart: ${Math.floor(startDate.getTime() / 1000)}, purchaseTimeEnd: ${Math.floor(endDate.getTime() / 1000)}${scrollArgument}) {
-          nodes { conversionId orderId checkoutId itemId itemName itemPrice qty totalCommission orderStatus purchaseTime }
+          nodes {
+            conversionId purchaseTime conversionStatus totalCommission utmContent
+            orders {
+              orderId orderStatus
+              items { itemId itemName itemPrice actualAmount qty itemTotalCommission displayItemStatus }
+            }
+          }
           pageInfo { hasNextPage scrollId }
         }
       }`;
@@ -241,17 +233,24 @@ export class ShopeeIntegration implements MarketplaceIntegration {
       const report = result?.data?.conversionReport;
       const nodes = Array.isArray(report?.nodes) ? report.nodes : [];
       for (const node of nodes) {
-        const orderId = String(node.conversionId || node.orderId || node.checkoutId || '').trim();
-        const productId = String(node.itemId || '').trim();
-        if (!orderId || !productId) continue;
-        reports.push({
-          orderExternalId: `${orderId}:${productId}`,
-          externalProductId: productId,
-          saleValue: Number(node.itemPrice || 0) * Number(node.qty || 1),
-          commissionValue: Number(node.totalCommission || 0),
-          status: this.mapOrderStatus(String(node.orderStatus || '')),
-          occurredAt: node.purchaseTime ? new Date(Number(node.purchaseTime) * 1000).toISOString() : undefined,
-        });
+        const orders = Array.isArray(node.orders) ? node.orders : [];
+        for (const order of orders) {
+          const items = Array.isArray(order.items) ? order.items : [];
+          for (const item of items) {
+            const orderId = String(order.orderId || node.conversionId || '').trim();
+            const productId = String(item.itemId || '').trim();
+            if (!orderId || !productId) continue;
+            reports.push({
+              orderExternalId: `${node.conversionId}:${orderId}:${productId}`,
+              externalProductId: productId,
+              clickId: String(node.utmContent || '').trim() || undefined,
+              saleValue: Number(item.actualAmount || 0) || Number(item.itemPrice || 0) * Number(item.qty || 1),
+              commissionValue: Number(item.itemTotalCommission || 0),
+              status: this.mapOrderStatus(String(item.displayItemStatus || order.orderStatus || node.conversionStatus || '')),
+              occurredAt: node.purchaseTime ? new Date(Number(node.purchaseTime) * 1000).toISOString() : undefined,
+            });
+          }
+        }
       }
       if (!report?.pageInfo?.hasNextPage || !report.pageInfo.scrollId) break;
       scrollId = report.pageInfo.scrollId;
