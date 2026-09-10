@@ -36,5 +36,13 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
+Write-Host "4. Publicando o Worker de automação diária..." -ForegroundColor Yellow
+npm run deploy:automation
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Falha no deploy do Worker de automação."
+    exit $LASTEXITCODE
+}
+
 Write-Host ""
 Write-Host "=== Deploy para Cloudflare concluído com sucesso! ===" -ForegroundColor Green

@@ -2,6 +2,8 @@ import { getSupabase } from '@/lib/supabase';
 import { runProductDiscovery } from '@/services/productDiscovery';
 import { generateContentDrafts } from '@/services/contentDraftGenerator';
 import { publishApprovedFacebookContent } from '@/services/facebookPublisher';
+import { publishApprovedInstagramContent } from '@/services/instagramPublisher';
+import { createCreatomateVideo, refreshCreatomateVideo } from '@/services/creatomateVideo';
 
 export interface AutonomousWorkflowResult {
   startedAt: string;
@@ -22,6 +24,66 @@ export interface AutonomousWorkflowResult {
     failed: number;
     errors: string[];
   };
+  instagramPublish: {
+    attempted: number;
+    published: number;
+    failed: number;
+    errors: string[];
+  };
+}
+
+async function wait(milliseconds: number) {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function publishDailyChannel(channel: 'facebook' | 'instagram') {
+  const supabase = getSupabase();
+  const stats = { attempted: 0, published: 0, failed: 0, errors: [] as string[] };
+  const { data: pending, error } = await supabase
+    .from('marketing_content')
+    .select('id, status, content_type')
+    .eq('channel', channel)
+    .in('status', ['DRAFT', 'APPROVED'])
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+
+  const content = pending?.[0];
+  if (!content) return stats;
+  stats.attempted = 1;
+
+  try {
+    if (content.status === 'DRAFT') {
+      const { error: approvalError } = await supabase
+        .from('marketing_content')
+        .update({ status: 'APPROVED', updated_at: new Date().toISOString() })
+        .eq('id', content.id);
+      if (approvalError) throw approvalError;
+    }
+
+    if (channel === 'instagram' && content.content_type === 'REEL') {
+      await createCreatomateVideo(content.id);
+      let ready = false;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const render = await refreshCreatomateVideo(content.id);
+        if (render.status.toUpperCase() === 'SUCCEEDED' && render.videoUrl) {
+          ready = true;
+          break;
+        }
+        if (render.status.toLowerCase() === 'failed') throw new Error('Render do Reel falhou.');
+        await wait(5000);
+      }
+      if (!ready) throw new Error('Render do Reel não ficou pronto no tempo esperado.');
+    }
+
+    if (channel === 'facebook') await publishApprovedFacebookContent(content.id);
+    else await publishApprovedInstagramContent(content.id);
+    stats.published = 1;
+  } catch (publishError) {
+    stats.failed = 1;
+    stats.errors.push(`Content ${content.id}: ${publishError instanceof Error ? publishError.message : String(publishError)}`);
+  }
+  return stats;
 }
 
 export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<AutonomousWorkflowResult> {
@@ -44,54 +106,9 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
     console.warn('[AutonomousAgent] Geração de rascunhos gerou aviso:', err);
   }
 
-  // ETAPA 3: Auto-aprovar os melhores rascunhos de Facebook gerados recentemente
-  const publishStats = {
-    attempted: 0,
-    published: 0,
-    failed: 0,
-    errors: [] as string[],
-  };
-
-  try {
-    const { data: pendingDrafts } = await supabase
-      .from('marketing_content')
-      .select('id, product_id, channel, status')
-      .eq('channel', 'facebook')
-      .in('status', ['DRAFT', 'APPROVED'])
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (pendingDrafts && pendingDrafts.length > 0) {
-      for (const draft of pendingDrafts) {
-        publishStats.attempted += 1;
-        try {
-          // Garante que o status esteja aprovado antes de publicar
-          if (draft.status === 'DRAFT') {
-            await supabase
-              .from('marketing_content')
-              .update({ status: 'APPROVED', updated_at: new Date().toISOString() })
-              .eq('id', draft.id);
-          }
-
-          await publishApprovedFacebookContent(draft.id);
-          publishStats.published += 1;
-
-          // Respeita a taxa de publicação da Meta e evita novos bloqueios por frequência.
-          const delayMs = Number(process.env.FACEBOOK_POST_DELAY_MS || 120000);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-        } catch (publishErr: any) {
-          publishStats.failed += 1;
-          const msg = publishErr instanceof Error ? publishErr.message : String(publishErr);
-          publishStats.errors.push(`Draft ${draft.id}: ${msg}`);
-          console.warn(`[AutonomousAgent] Falha ao publicar post ${draft.id} no Facebook:`, msg);
-          break;
-        }
-      }
-    }
-  } catch (err: any) {
-    const msg = err instanceof Error ? err.message : String(err);
-    publishStats.errors.push(msg);
-  }
+  // ETAPA 3: Aprovar e publicar no máximo um conteúdo por canal diariamente.
+  const publishStats = await publishDailyChannel('facebook');
+  const instagramPublish = await publishDailyChannel('instagram');
 
   const finishedAt = new Date().toISOString();
 
@@ -106,5 +123,6 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
     },
     drafts: draftResult,
     facebookPublish: publishStats,
+    instagramPublish,
   };
 }

@@ -59,8 +59,25 @@ export async function getProducts(params: ProductQueryParams) {
 
   const page = params.page || 1;
   const limit = params.limit || 12;
-  const { data, count, error } = await query.range((page - 1) * limit, page * limit - 1);
+  let { data, count, error } = await query.range((page - 1) * limit, page * limit - 1);
   if (error) throw error;
+
+  // Products imported from affiliate APIs may not have reliable boolean flags yet.
+  // Keep curated sections populated using their measured ranking as a fallback.
+  if ((!data || data.length === 0) && (params.isBestSeller || params.isTrending)) {
+    let fallbackQuery = supabase
+      .from('products')
+      .select('*, category:categories(*), marketplace:marketplaces(*), metrics:product_metrics(*)', { count: 'exact' })
+      .eq('status', 'ACTIVE');
+    fallbackQuery = params.isBestSeller
+      ? fallbackQuery.order('sales_count', { ascending: false }).order('popularity_score', { ascending: false })
+      : fallbackQuery.order('trend_score', { ascending: false }).order('popularity_score', { ascending: false });
+    const fallback = await fallbackQuery.range((page - 1) * limit, page * limit - 1);
+    if (fallback.error) throw fallback.error;
+    data = fallback.data;
+    count = fallback.count;
+  }
+
   const products = (data || []).map((product) => {
     const normalized = normalizeProduct(product);
     return { ...normalized, computedScore: calculateProductScore({

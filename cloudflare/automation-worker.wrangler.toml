@@ -4,7 +4,7 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 [triggers]
-crons = ["0 */6 * * *"]
+crons = ["0 9 * * *"]
 
 [vars]
 APP_BASE_URL = "https://venda-sem-estoque.pages.dev"
