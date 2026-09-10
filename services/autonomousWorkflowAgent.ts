@@ -1,6 +1,6 @@
 import { getSupabase } from '@/lib/supabase';
 import { runProductDiscovery } from '@/services/productDiscovery';
-import { generateContentDrafts } from '@/services/contentDraftGenerator';
+import { generateContentDraftForProduct, generateContentDrafts } from '@/services/contentDraftGenerator';
 import { publishApprovedFacebookContent } from '@/services/facebookPublisher';
 import { publishApprovedInstagramContent } from '@/services/instagramPublisher';
 import { createCreatomateVideo, refreshCreatomateVideo } from '@/services/creatomateVideo';
@@ -39,16 +39,35 @@ async function wait(milliseconds: number) {
 async function publishDailyChannel(channel: 'facebook' | 'instagram') {
   const supabase = getSupabase();
   const stats = { attempted: 0, published: 0, failed: 0, errors: [] as string[] };
+  const { data: published, error: publishedError } = await supabase
+    .from('marketing_content')
+    .select('product_id')
+    .eq('channel', channel)
+    .eq('status', 'PUBLISHED');
+  if (publishedError) throw publishedError;
+  const publishedProductIds = new Set((published || []).map((item) => item.product_id));
+
   const { data: pending, error } = await supabase
     .from('marketing_content')
-    .select('id, status, content_type')
+    .select('id, product_id, status, content_type')
     .eq('channel', channel)
     .in('status', ['DRAFT', 'APPROVED'])
-    .order('created_at', { ascending: false })
-    .limit(1);
+    .order('created_at', { ascending: true })
+    .limit(50);
   if (error) throw error;
 
-  const content = pending?.[0];
+  let content = (pending || []).find((item) => !publishedProductIds.has(item.product_id));
+  if (!content) {
+    const { data: products, error: productsError } = await supabase
+      .from('products')
+      .select('id')
+      .eq('status', 'ACTIVE')
+      .order('popularity_score', { ascending: false })
+      .limit(100);
+    if (productsError) throw productsError;
+    const product = (products || []).find((item) => !publishedProductIds.has(item.id));
+    if (product) content = await generateContentDraftForProduct(product.id, channel, 'POST');
+  }
   if (!content) return stats;
   stats.attempted = 1;
 
@@ -56,7 +75,7 @@ async function publishDailyChannel(channel: 'facebook' | 'instagram') {
     if (content.status === 'DRAFT') {
       const { error: approvalError } = await supabase
         .from('marketing_content')
-        .update({ status: 'APPROVED', updated_at: new Date().toISOString() })
+        .update({ status: 'APPROVED', publication_error: null, updated_at: new Date().toISOString() })
         .eq('id', content.id);
       if (approvalError) throw approvalError;
     }

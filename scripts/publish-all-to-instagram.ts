@@ -5,6 +5,7 @@ import { publishApprovedInstagramContent } from '../services/instagramPublisher'
 const POST_DELAY_MS = Number(process.env.INSTAGRAM_POST_DELAY_MS || 600000);
 const BATCH_COOLDOWN_MS = Number(process.env.INSTAGRAM_BATCH_COOLDOWN_MS || 3600000);
 const BATCH_SIZE = Number(process.env.INSTAGRAM_BATCH_SIZE || 5);
+const MAX_PUBLICATIONS = Number(process.env.INSTAGRAM_MAX_PUBLICATIONS || 0);
 
 async function wait(milliseconds: number) {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -29,7 +30,8 @@ async function main() {
   if (publishedError) throw publishedError;
 
   const publishedProductIds = new Set((publishedContents || []).map((content) => content.product_id));
-  const pendingProducts = (products || []).filter((product) => !publishedProductIds.has(product.id));
+  const allPendingProducts = (products || []).filter((product) => !publishedProductIds.has(product.id));
+  const pendingProducts = MAX_PUBLICATIONS > 0 ? allPendingProducts.slice(0, MAX_PUBLICATIONS) : allPendingProducts;
   console.log(`Produtos ativos: ${products?.length || 0}`);
   console.log(`Produtos pendentes no Instagram: ${pendingProducts.length}`);
 
