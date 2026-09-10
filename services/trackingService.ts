@@ -1,9 +1,16 @@
 import { AffiliateClickData } from '@/types';
 import { getSupabase } from '@/lib/supabase';
 
+export async function getAffiliateUrlForProduct(productId: string): Promise<string> {
+  const { data: product, error } = await getSupabase().from('products').select('affiliate_url').eq('id', productId).maybeSingle();
+  if (error) throw error;
+  if (!product?.affiliate_url) throw new Error('Produto não encontrado');
+  return product.affiliate_url;
+}
+
 export async function registerClickAndGetAffiliateUrl(data: AffiliateClickData): Promise<string> {
   const supabase = getSupabase();
-  const { data: product, error: productError } = await supabase.from('products').select('id,affiliate_url').eq('id', data.productId).maybeSingle();
+  const { data: product, error: productError } = await supabase.from('products').select('id,affiliate_url,marketplace:marketplaces(slug)').eq('id', data.productId).maybeSingle();
   if (productError) throw productError;
   if (!product?.affiliate_url) throw new Error('Produto não encontrado');
 
@@ -33,7 +40,24 @@ export async function registerClickAndGetAffiliateUrl(data: AffiliateClickData):
   if (metricError) console.warn('Could not update product metrics:', metricError.message);
 
   const affiliateUrl = new URL(product.affiliate_url);
-  affiliateUrl.searchParams.set('subid_click', click?.id || clickId);
+  const marketplace = product.marketplace as { slug?: string } | null;
+  const trackingId = click?.id || clickId;
+  switch (marketplace?.slug) {
+    case 'amazon':
+      affiliateUrl.searchParams.set('ascsubtag', trackingId);
+      break;
+    case 'shopee':
+      affiliateUrl.searchParams.set('sub_id', trackingId);
+      break;
+    case 'mercadolivre':
+      affiliateUrl.searchParams.set('matt_word', trackingId);
+      break;
+    case 'aliexpress':
+      affiliateUrl.searchParams.set('aff_platform', trackingId);
+      break;
+    default:
+      affiliateUrl.searchParams.set('subid_click', trackingId);
+  }
   return affiliateUrl.toString();
 }
 

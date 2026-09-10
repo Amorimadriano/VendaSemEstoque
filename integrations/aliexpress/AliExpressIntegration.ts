@@ -1,4 +1,4 @@
-import { MarketplaceIntegration, ProductVerificationResult } from '../MarketplaceIntegration';
+import { AffiliateConversionReport, MarketplaceIntegration, ProductVerificationResult } from '../MarketplaceIntegration';
 import { ExternalProduct } from '../../types';
 
 export const REAL_ALIEXPRESS_TOP_PRODUCTS = [
@@ -389,8 +389,55 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     return 0;
   }
 
-  async getConversions(_startDate?: Date, _endDate?: Date): Promise<any[]> {
-    return [];
+  async getConversions(startDate = new Date(Date.now() - 7 * 86400000), endDate = new Date()): Promise<AffiliateConversionReport[]> {
+    this.assertCredentials();
+    const reports: AffiliateConversionReport[] = [];
+
+    for (let page = 1; page <= 20; page += 1) {
+      const params: Record<string, string> = {
+        app_key: process.env.ALIEXPRESS_APP_KEY || '',
+        method: 'aliexpress.affiliate.order.list',
+        sign_method: 'hmac-sha256',
+        format: 'json',
+        v: '2.0',
+        timestamp: this.formatTimestamp(new Date()),
+        start_time: this.formatTimestamp(startDate),
+        end_time: this.formatTimestamp(endDate),
+        page_no: String(page),
+        page_size: '50',
+        status: 'All',
+        tracking_id: process.env.ALIEXPRESS_TRACKING_ID || '',
+      };
+      params.sign = await this.sign(params);
+      const response = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(params)}`);
+      const responseText = await response.text();
+      if (!responseText.trim().startsWith('{')) throw new Error(`AliExpress order list retornou resposta não-JSON (HTTP ${response.status}).`);
+      const payload = JSON.parse(responseText) as any;
+      if (!response.ok || payload?.error_response) {
+        throw new Error(payload?.error_response?.msg || `AliExpress order list retornou ${response.status}.`);
+      }
+
+      let result = payload?.aliexpress_affiliate_order_list_response?.resp_result?.result || payload?.resp_result?.result || {};
+      if (typeof result === 'string') result = JSON.parse(result);
+      const rawOrders = result?.orders?.order || result?.orders || [];
+      const orders: Array<Record<string, unknown>> = Array.isArray(rawOrders) ? rawOrders : rawOrders ? [rawOrders] : [];
+      for (const order of orders) {
+        const orderId = String(order.order_number || order.order_id || '').trim();
+        const productId = String(order.product_id || '').trim();
+        if (!orderId || !productId) continue;
+        reports.push({
+          orderExternalId: `${orderId}:${productId}`,
+          externalProductId: productId,
+          clickId: String(order.sub_id || order.aff_platform || '').trim() || undefined,
+          saleValue: this.parseMoney(order.order_amount || order.product_price || order.estimated_paid_amount),
+          commissionValue: this.parseMoney(order.estimated_commission || order.commission_amount || order.commission),
+          status: this.mapOrderStatus(String(order.order_status || order.status || '')),
+          occurredAt: String(order.order_time || order.paid_time || order.created_time || '').trim() || undefined,
+        });
+      }
+      if (orders.length < 50) break;
+    }
+    return reports;
   }
 
   async getCommissions(_startDate?: Date, _endDate?: Date): Promise<{ total: number; pending: number; approved: number }> {
@@ -478,5 +525,19 @@ export class AliExpressIntegration implements MarketplaceIntegration {
   private formatTimestamp(date: Date) {
     const pad = (value: number) => String(value).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
+  private parseMoney(value: unknown) {
+    if (typeof value === 'number') return value;
+    if (value && typeof value === 'object') return Number((value as { amount?: number }).amount || 0);
+    return Number(String(value || '0').replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0;
+  }
+
+  private mapOrderStatus(status: string): AffiliateConversionReport['status'] {
+    const normalized = status.toLowerCase();
+    if (/(paid|settled|finished|completed)/.test(normalized)) return 'PAID';
+    if (/(valid|approved|confirmed)/.test(normalized)) return 'APPROVED';
+    if (/(cancel|invalid|refund|closed)/.test(normalized)) return 'CANCELLED';
+    return 'PENDING';
   }
 }

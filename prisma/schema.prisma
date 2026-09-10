@@ -253,6 +253,7 @@ model Conversion {
   marketplace      Marketplace  @relation(fields: [marketplaceId], references: [id])
   commission       Commission?
 
+  @@unique([marketplaceId, orderExternalId])
   @@map("conversions")
   @@schema("public")
 }

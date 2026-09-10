@@ -1,4 +1,4 @@
-import { MarketplaceIntegration, ProductVerificationResult } from '../MarketplaceIntegration';
+import { AffiliateConversionReport, MarketplaceIntegration, ProductVerificationResult } from '../MarketplaceIntegration';
 import { ExternalProduct } from '../../types';
 
 type ShopeeNode = {
@@ -198,11 +198,62 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     return 0;
   }
 
-  async getConversions(_startDate?: Date, _endDate?: Date): Promise<any[]> {
-    return [];
+  async getConversions(startDate = new Date(Date.now() - 7 * 86400000), endDate = new Date()): Promise<AffiliateConversionReport[]> {
+    if (!this.hasCredentials()) throw new Error('Credenciais da Shopee não configuradas.');
+    const reports: AffiliateConversionReport[] = [];
+    let scrollId = '';
+
+    for (let page = 0; page < 20; page += 1) {
+      const scrollArgument = scrollId ? `, scrollId: ${JSON.stringify(scrollId)}` : '';
+      const query = `query {
+        conversionReport(purchaseTimeStart: ${Math.floor(startDate.getTime() / 1000)}, purchaseTimeEnd: ${Math.floor(endDate.getTime() / 1000)}${scrollArgument}) {
+          nodes { conversionId orderId checkoutId itemId itemName itemPrice qty totalCommission orderStatus purchaseTime }
+          pageInfo { hasNextPage scrollId }
+        }
+      }`;
+      const payload = JSON.stringify({ query });
+      const response = await fetch('https://open-api.affiliate.shopee.com.br/graphql', {
+        method: 'POST',
+        headers: await this.generateAuthHeaders(payload),
+        body: payload,
+      });
+      const responseText = await response.text();
+      if (!responseText.trim().startsWith('{')) throw new Error(`Shopee conversion report retornou resposta não-JSON (HTTP ${response.status}).`);
+      const result = JSON.parse(responseText) as any;
+      if (!response.ok || result?.errors?.length) {
+        throw new Error(result?.errors?.[0]?.message || `Shopee conversion report retornou ${response.status}.`);
+      }
+
+      const report = result?.data?.conversionReport;
+      const nodes = Array.isArray(report?.nodes) ? report.nodes : [];
+      for (const node of nodes) {
+        const orderId = String(node.conversionId || node.orderId || node.checkoutId || '').trim();
+        const productId = String(node.itemId || '').trim();
+        if (!orderId || !productId) continue;
+        reports.push({
+          orderExternalId: `${orderId}:${productId}`,
+          externalProductId: productId,
+          saleValue: Number(node.itemPrice || 0) * Number(node.qty || 1),
+          commissionValue: Number(node.totalCommission || 0),
+          status: this.mapOrderStatus(String(node.orderStatus || '')),
+          occurredAt: node.purchaseTime ? new Date(Number(node.purchaseTime) * 1000).toISOString() : undefined,
+        });
+      }
+      if (!report?.pageInfo?.hasNextPage || !report.pageInfo.scrollId) break;
+      scrollId = report.pageInfo.scrollId;
+    }
+    return reports;
   }
 
   async getCommissions(_startDate?: Date, _endDate?: Date): Promise<{ total: number; pending: number; approved: number }> {
     return { total: 0, pending: 0, approved: 0 };
+  }
+
+  private mapOrderStatus(status: string): AffiliateConversionReport['status'] {
+    const normalized = status.toLowerCase();
+    if (/(paid|completed|validated)/.test(normalized)) return 'PAID';
+    if (/(approved|confirmed)/.test(normalized)) return 'APPROVED';
+    if (/(cancel|invalid|refund)/.test(normalized)) return 'CANCELLED';
+    return 'PENDING';
   }
 }

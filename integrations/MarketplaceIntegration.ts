@@ -11,6 +11,18 @@ export interface ProductVerificationResult {
   reason?: string;
 }
 
+export type AffiliateConversionStatus = 'PENDING' | 'APPROVED' | 'CANCELLED' | 'PAID';
+
+export interface AffiliateConversionReport {
+  orderExternalId: string;
+  externalProductId: string;
+  clickId?: string;
+  saleValue: number;
+  commissionValue: number;
+  status: AffiliateConversionStatus;
+  occurredAt?: string;
+}
+
 export interface MarketplaceIntegration {
   marketplaceSlug: string;
   marketplaceName: string;
@@ -67,7 +79,7 @@ export interface MarketplaceIntegration {
   getConversions(
     startDate?: Date,
     endDate?: Date
-  ): Promise<any[]>;
+  ): Promise<AffiliateConversionReport[]>;
 
   getCommissions(
     startDate?: Date,

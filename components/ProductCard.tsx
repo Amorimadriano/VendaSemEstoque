@@ -155,7 +155,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         {/* Botão Ver Oferta com Tracking (/go/[id]) */}
         <a
-          href={product.affiliateUrl || `/go/${product.id}`}
+          href={`/go/${product.id}`}
           target="_blank"
           rel="noopener noreferrer"
           className="w-full mt-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all"
