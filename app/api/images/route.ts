@@ -9,6 +9,9 @@ const ALLOWED_DOMAINS = [
   'shopee.com.br',
   'susercontent.com',
   'shopeesz.com',
+  'media-amazon.com',
+  'images-amazon.com',
+  'images.unsplash.com',
 ];
 
 export async function GET(request: NextRequest) {

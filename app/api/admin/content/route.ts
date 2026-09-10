@@ -23,6 +23,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const input = contentSchema.safeParse(await request.json());
   if (!input.success) return NextResponse.json({ error: 'Conteúdo inválido.' }, { status: 400 });
+  if (input.data.channel === 'facebook' && input.data.contentType === 'REEL') {
+    return NextResponse.json({ error: 'Reels do Facebook exigem vídeo processado pela API da Meta. Use Post ou gere um vídeo antes de publicar.' }, { status: 400 });
+  }
   const { data, error } = await getSupabase().from('marketing_content').insert({
     product_id: input.data.productId,
     channel: input.data.channel,

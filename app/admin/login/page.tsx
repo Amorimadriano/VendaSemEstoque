@@ -1,10 +1,8 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,6 +16,7 @@ export default function AdminLoginPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
+      cache: 'no-store',
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -25,8 +24,8 @@ export default function AdminLoginPage() {
       setLoading(false);
       return;
     }
-    router.replace('/admin');
-    router.refresh();
+    // A navegação completa garante que o middleware leia o cookie recém-criado.
+    window.location.assign('/admin');
   }
 
   return (

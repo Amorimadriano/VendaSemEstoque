@@ -18,12 +18,82 @@ export async function publishApprovedInstagramContent(contentId: string) {
 
   if (error) throw error;
   if (!content) throw new Error('Conteúdo aprovado do Instagram não encontrado.');
+  const { data: existingPublication, error: duplicateError } = await supabase
+    .from('marketing_content')
+    .select('id,external_post_id')
+    .eq('product_id', content.product_id)
+    .eq('channel', 'instagram')
+    .eq('status', 'PUBLISHED')
+    .neq('id', contentId)
+    .limit(1)
+    .maybeSingle();
+  if (duplicateError) throw duplicateError;
+  if (existingPublication) throw new Error('Este produto já possui uma publicação ativa no Instagram.');
 
   const product = content.product as { id?: string; image_url?: string } | null;
-  const siteUrl = (process.env.SITE_URL || 'https://venda-sem-estoque.pages.dev').replace(/\/$/, '');
-  const partnerLink = product?.id ? `${siteUrl}/go/${product.id}?utm_source=instagram&utm_medium=bio` : siteUrl;
-  const caption = `${content.hook}\n\n${content.caption}\n\n${content.cta}\n🔗 Link no perfil/site: ${partnerLink}`;
+  const caption = `${content.hook}\n\n${content.caption}\n\n${content.cta}\n🔗 Acesse o link na bio para ver a oferta e consultar a disponibilidade atualizada.`;
   const imageUrl = product?.image_url;
+
+  if (content.content_type === 'REEL') {
+    const { data: video, error: videoError } = await supabase
+      .from('marketing_videos')
+      .select('video_url,status')
+      .eq('content_id', contentId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (videoError) throw videoError;
+    if (!video?.video_url || !['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(String(video.status).toUpperCase())) {
+      throw new Error('Gere o vídeo do Reel e aguarde o render terminar antes de publicar.');
+    }
+
+    const createReelBody = new URLSearchParams({
+      media_type: 'REELS',
+      video_url: video.video_url,
+      caption,
+      share_to_feed: 'true',
+      access_token: token,
+    });
+    const createReelResponse = await fetch(`https://graph.facebook.com/v26.0/${instagramAccountId}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: createReelBody,
+    });
+    const reelContainer = await createReelResponse.json() as { id?: string; error?: { message?: string } };
+    if (!createReelResponse.ok || !reelContainer.id) throw new Error(reelContainer.error?.message || `Meta API retornou ${createReelResponse.status} ao criar o Reel.`);
+
+    let containerStatus = 'IN_PROGRESS';
+    let containerError = '';
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const statusUrl = new URL(`https://graph.facebook.com/v26.0/${reelContainer.id}`);
+      statusUrl.searchParams.set('fields', 'status_code,status');
+      statusUrl.searchParams.set('access_token', token);
+      const statusResponse = await fetch(statusUrl);
+      const statusResult = await statusResponse.json() as { status_code?: string; status?: string; error?: { message?: string } };
+      if (!statusResponse.ok) throw new Error(statusResult.error?.message || `Meta API retornou ${statusResponse.status} ao consultar o Reel.`);
+      containerStatus = String(statusResult.status_code || statusResult.status || '').toUpperCase();
+      if (containerStatus === 'FINISHED') break;
+      if (containerStatus === 'ERROR' || containerStatus === 'EXPIRED') {
+        containerError = statusResult.status || containerStatus;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+    if (containerStatus !== 'FINISHED') throw new Error(`O Instagram não concluiu o processamento do Reel: ${containerError || containerStatus}.`);
+
+    const publishReelBody = new URLSearchParams({ creation_id: reelContainer.id, access_token: token });
+    const publishReelResponse = await fetch(`https://graph.facebook.com/v26.0/${instagramAccountId}/media_publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: publishReelBody,
+    });
+    const publishedReel = await publishReelResponse.json() as { id?: string; error?: { message?: string } };
+    if (!publishReelResponse.ok || !publishedReel.id) throw new Error(publishedReel.error?.message || `Meta API retornou ${publishReelResponse.status} ao publicar o Reel.`);
+
+    const { error: reelUpdateError } = await supabase.from('marketing_content').update({ status: 'PUBLISHED', external_post_id: publishedReel.id, published_at: new Date().toISOString(), publication_error: null, updated_at: new Date().toISOString() }).eq('id', contentId);
+    if (reelUpdateError) throw reelUpdateError;
+    return { published: true, externalPostId: publishedReel.id };
+  }
 
   if (!imageUrl || !imageUrl.startsWith('http')) {
     throw new Error('O produto não possui uma imagem com URL pública válida para publicação no Instagram.');

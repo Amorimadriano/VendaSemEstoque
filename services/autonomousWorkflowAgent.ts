@@ -59,7 +59,7 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
       .eq('channel', 'facebook')
       .in('status', ['DRAFT', 'APPROVED'])
       .order('created_at', { ascending: false })
-      .limit(3);
+      .limit(1);
 
     if (pendingDrafts && pendingDrafts.length > 0) {
       for (const draft of pendingDrafts) {
@@ -75,11 +75,16 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
 
           await publishApprovedFacebookContent(draft.id);
           publishStats.published += 1;
+
+          // Respeita a taxa de publicação da Meta e evita novos bloqueios por frequência.
+          const delayMs = Number(process.env.FACEBOOK_POST_DELAY_MS || 120000);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
         } catch (publishErr: any) {
           publishStats.failed += 1;
           const msg = publishErr instanceof Error ? publishErr.message : String(publishErr);
           publishStats.errors.push(`Draft ${draft.id}: ${msg}`);
           console.warn(`[AutonomousAgent] Falha ao publicar post ${draft.id} no Facebook:`, msg);
+          break;
         }
       }
     }

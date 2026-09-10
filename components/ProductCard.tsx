@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ImageOff, Star, Flame, Trophy, ExternalLink } from 'lucide-react';
 
 interface ProductCardProps {
@@ -29,7 +29,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const [imageFailed, setImageFailed] = useState(false);
+  const [imageMode, setImageMode] = useState<'proxy' | 'direct' | 'failed'>('proxy');
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -49,13 +49,18 @@ export default function ProductCard({ product }: ProductCardProps) {
       }).format(product.commissionValue)
     : null;
 
-  const imageSource = product.imageUrl ? `/api/images?src=${encodeURIComponent(product.imageUrl)}` : '';
+  const proxyImageSource = product.imageUrl ? `/api/images?src=${encodeURIComponent(product.imageUrl)}` : '';
+  const imageSource = imageMode === 'direct' ? product.imageUrl : proxyImageSource;
+
+  useEffect(() => {
+    setImageMode(product.imageUrl ? 'proxy' : 'failed');
+  }, [product.imageUrl]);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
       
       {/* Top badges */}
-      <div className="relative p-3 bg-gray-50 flex items-center justify-between min-h-[160px] overflow-hidden">
+      <div className="relative h-52 shrink-0 p-3 bg-gray-50 flex items-center justify-between overflow-hidden">
         
         {/* Badges de destaque */}
         <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
@@ -84,17 +89,17 @@ export default function ProductCard({ product }: ProductCardProps) {
         )}
 
         {/* Imagem do Produto */}
-        <Link href={`/produto/${product.slug}`} className="w-full h-full flex items-center justify-center pt-6">
-          {imageFailed ? (
+        <Link href={`/produto/${product.slug}`} className="flex h-full w-full items-center justify-center pt-6">
+          {imageMode === 'failed' ? (
             <div className="flex h-36 w-full flex-col items-center justify-center gap-2 text-gray-400"><ImageOff className="h-8 w-8" /><span className="text-xs">Imagem indisponível</span></div>
           ) : (
             <img
               src={imageSource}
-              alt={product.name}
-              className="h-36 object-contain group-hover:scale-105 transition-transform duration-300"
+              alt=""
+              className="h-36 max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
               referrerPolicy="no-referrer"
-              onError={() => setImageFailed(true)}
+              onError={() => setImageMode((current) => current === 'proxy' ? 'direct' : 'failed')}
             />
           )}
         </Link>

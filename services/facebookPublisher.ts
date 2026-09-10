@@ -9,6 +9,20 @@ export async function publishApprovedFacebookContent(contentId: string) {
   const { data: content, error } = await supabase.from('marketing_content').select('*, product:products(id,image_url)').eq('id', contentId).eq('channel', 'facebook').eq('status', 'APPROVED').maybeSingle();
   if (error) throw error;
   if (!content) throw new Error('Conteúdo aprovado do Facebook não encontrado.');
+  const { data: existingPublication, error: duplicateError } = await supabase
+    .from('marketing_content')
+    .select('id,external_post_id')
+    .eq('product_id', content.product_id)
+    .eq('channel', 'facebook')
+    .eq('status', 'PUBLISHED')
+    .neq('id', contentId)
+    .limit(1)
+    .maybeSingle();
+  if (duplicateError) throw duplicateError;
+  if (existingPublication) throw new Error('Este produto já possui uma publicação ativa no Facebook.');
+  if (content.content_type === 'REEL') {
+    throw new Error('Reels do Facebook exigem um vídeo processado. Este fluxo ainda não possui um vídeo publicado para este conteúdo.');
+  }
 
   const product = content.product as { id?: string; image_url?: string } | null;
   const siteUrl = (process.env.SITE_URL || 'https://venda-sem-estoque.pages.dev').replace(/\/$/, '');

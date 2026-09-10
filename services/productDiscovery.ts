@@ -8,6 +8,7 @@ const MIN_REVIEWS = Number(process.env.PRODUCT_MIN_REVIEWS || 20);
 const DEFAULT_COMMISSION = Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10);
 const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 20);
 const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 15000);
+// Amazon é disponível mas desativado por padrão due to TLS cert issues em dev. Ativar em produção via MARKETPLACES_TO_SYNC=mercadolivre,aliexpress,shopee,amazon
 const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress,shopee').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
 
 function toSlug(value: string) {
@@ -106,6 +107,16 @@ export function validateCandidateProduct(product: ExternalProduct, marketplaceSl
     }
   }
 
+  if (marketplaceSlug === 'amazon') {
+    const amazonUrl = product.originalUrl.toLowerCase();
+    if (amazonUrl.includes('/s?') || amazonUrl.includes('/search') || amazonUrl.includes('/find') || amazonUrl.includes('/browse')) {
+      return { isValid: false, reason: 'URL da Amazon é busca ou categoria, não anúncio direto' };
+    }
+    if (!amazonUrl.includes('/dp/') && !amazonUrl.includes('/gp/product/')) {
+      return { isValid: false, reason: 'URL da Amazon não possui formato de produto direto (ASIN)' };
+    }
+  }
+
   // 6. Validação de Disponibilidade
   if (!product.isAvailable) {
     return { isValid: false, reason: 'Produto marcado como indisponível ou esgotado' };
@@ -134,7 +145,7 @@ function calculateRanking(product: ExternalProduct, commissionPercentage: number
 async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) {
   const supabase = getSupabase();
   const now = new Date().toISOString();
-  const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : marketplaceSlug === 'shopee' ? 'Shopee' : 'Mercado Livre';
+  const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : marketplaceSlug === 'shopee' ? 'Shopee' : marketplaceSlug === 'amazon' ? 'Amazon' : 'Mercado Livre';
   const { data: currentMarketplace } = await supabase.from('marketplaces').select('id').eq('slug', marketplaceSlug).maybeSingle();
   const { data: marketplace, error: marketplaceError } = await supabase.from('marketplaces').upsert({ id: currentMarketplace?.id || crypto.randomUUID(), name: marketplaceName, slug: marketplaceSlug, affiliate_status: 'ACTIVE', api_status: 'ACTIVE', created_at: now, updated_at: now }, { onConflict: 'slug' }).select('id').single();
   if (marketplaceError) throw marketplaceError;
@@ -226,6 +237,9 @@ function checkMarketplaceCredentials(marketplaceSlug: string): string | null {
   }
   if (marketplaceSlug === 'shopee' && (!process.env.SHOPEE_APP_ID || !process.env.SHOPEE_SECRET)) {
     return 'Shopee não configurado: cadastre SHOPEE_APP_ID e SHOPEE_SECRET nas variáveis de ambiente.';
+  }
+  if (marketplaceSlug === 'amazon' && (!process.env.AMAZON_ACCESS_KEY || !process.env.AMAZON_SECRET_KEY || !process.env.AMAZON_ASSOCIATE_TAG)) {
+    return 'Amazon não configurado: cadastre AMAZON_ACCESS_KEY, AMAZON_SECRET_KEY e AMAZON_ASSOCIATE_TAG nas variáveis de ambiente.';
   }
   return null;
 }
