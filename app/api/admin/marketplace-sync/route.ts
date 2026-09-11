@@ -5,7 +5,7 @@ import { runProductDiscovery } from '@/services/productDiscovery';
 export const runtime = 'edge';
 
 export async function GET() {
-  const { data, error } = await getSupabase().from('marketplace_sync_logs').select('*').order('created_at', { ascending: false }).limit(20);
+  const { data, error } = await getSupabase().from('marketplace_sync_logs').select('*').order('created_at', { ascending: false }).limit(100);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data || []);
 }

@@ -15,6 +15,13 @@ type SyncLog = {
   created_at: string;
 };
 
+const MARKETPLACES = [
+  { slug: 'mercadolivre', label: 'Mercado Livre' },
+  { slug: 'aliexpress', label: 'AliExpress' },
+  { slug: 'shopee', label: 'Shopee' },
+  { slug: 'amazon', label: 'Amazon Brasil' },
+] as const;
+
 const STATUS_STYLES: Record<SyncLog['status'], string> = {
   SUCCESS: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   NO_PRODUCTS: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -66,13 +73,25 @@ export default function MarketplaceSyncStatus() {
         </button>
       </div>
       {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>}
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {[...latestByMarketplace.values()].map((log) => {
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {MARKETPLACES.map((marketplace) => {
+          const log = latestByMarketplace.get(marketplace.slug);
+          if (!log) {
+            return (
+              <div key={marketplace.slug} className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+                <div className="flex items-center justify-between gap-2">
+                  <strong className="text-gray-700">{marketplace.label}</strong>
+                  <span className="font-bold">AGUARDANDO</span>
+                </div>
+                <p className="mt-2">Nenhuma sincronização registrada ainda.</p>
+              </div>
+            );
+          }
           const Icon = STATUS_ICON[log.status];
           return (
             <div key={log.marketplace_slug} className={`rounded-md border p-3 text-xs ${STATUS_STYLES[log.status]}`}>
               <div className="flex items-center justify-between gap-2">
-                <strong className="capitalize">{log.marketplace_slug}</strong>
+                <strong>{marketplace.label}</strong>
                 <span className="flex items-center gap-1 font-bold"><Icon className="h-4 w-4" /> {log.status}</span>
               </div>
               <p className="mt-2 text-gray-700">Termos pesquisados: {log.searched_terms} · Encontrados: {log.found} · Filtrados: {log.filtered_out} · Publicados: {log.published}</p>
@@ -81,7 +100,6 @@ export default function MarketplaceSyncStatus() {
             </div>
           );
         })}
-        {!latestByMarketplace.size && <p className="text-sm text-gray-500">Nenhuma sincronização registrada ainda.</p>}
       </div>
     </section>
   );
