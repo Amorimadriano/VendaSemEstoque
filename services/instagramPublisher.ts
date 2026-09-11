@@ -1,6 +1,45 @@
 import { getSupabase } from '@/lib/supabase';
 import { validateProductQuality } from '@/lib/productQuality';
 
+type InstagramPublishingLimit = {
+  quotaTotal: number;
+  quotaUsage: number;
+  remaining: number;
+};
+
+export function canPublishWithinInstagramQuota(limit: InstagramPublishingLimit, reserve = 5) {
+  return limit.remaining > Math.max(1, reserve);
+}
+
+export async function getInstagramPublishingLimit(): Promise<InstagramPublishingLimit> {
+  const token = process.env.META_ACCESS_TOKEN;
+  const instagramAccountId = process.env.META_INSTAGRAM_ACCOUNT_ID;
+  if (!token || !instagramAccountId) throw new Error('Credenciais do Instagram não configuradas.');
+
+  const url = new URL(`https://graph.facebook.com/v26.0/${instagramAccountId}/content_publishing_limit`);
+  url.searchParams.set('fields', 'config,quota_usage');
+  url.searchParams.set('access_token', token);
+  const response = await fetch(url);
+  const result = await response.json() as { data?: Array<{ config?: { quota_total?: number }; quota_usage?: number }>; error?: { message?: string } };
+  const limit = result.data?.[0];
+  if (!response.ok || !limit?.config?.quota_total) {
+    throw new Error(result.error?.message || 'Não foi possível consultar o limite de publicação do Instagram.');
+  }
+
+  const quotaTotal = Number(limit.config.quota_total);
+  const quotaUsage = Number(limit.quota_usage || 0);
+  return { quotaTotal, quotaUsage, remaining: Math.max(0, quotaTotal - quotaUsage) };
+}
+
+async function ensureInstagramPublishingCapacity() {
+  const limit = await getInstagramPublishingLimit();
+  const reserve = Math.max(1, Number(process.env.INSTAGRAM_QUOTA_RESERVE || 5));
+  if (!canPublishWithinInstagramQuota(limit, reserve)) {
+    throw new Error(`Limite diário do Instagram próximo do máximo (${limit.quotaUsage}/${limit.quotaTotal}). Publicação adiada para preservar ${reserve} vaga(s).`);
+  }
+  return limit;
+}
+
 export async function publishApprovedInstagramContent(contentId: string) {
   const token = process.env.META_ACCESS_TOKEN;
   const instagramAccountId = process.env.META_INSTAGRAM_ACCOUNT_ID;
@@ -34,6 +73,7 @@ export async function publishApprovedInstagramContent(contentId: string) {
   const product = content.product as { id?: string; name?: string; description?: string; image_url?: string; affiliate_url?: string; price?: number; status?: string } | null;
   const quality = validateProductQuality(product || {});
   if (!quality.valid) throw new Error(`Produto não atende aos critérios de publicação: ${quality.errors.join(', ')}.`);
+  const publishingLimit = await ensureInstagramPublishingCapacity();
   const caption = `${content.hook}\n\n${content.caption}\n\n${content.cta}\n🔗 Acesse o link na bio para ver a oferta e consultar a disponibilidade atualizada.`;
   const imageUrl = product?.image_url;
 
@@ -95,7 +135,7 @@ export async function publishApprovedInstagramContent(contentId: string) {
 
     const { error: reelUpdateError } = await supabase.from('marketing_content').update({ status: 'PUBLISHED', external_post_id: publishedReel.id, published_at: new Date().toISOString(), publication_error: null, attempt_count: 0, next_retry_at: null, processing_started_at: null, updated_at: new Date().toISOString() }).eq('id', contentId);
     if (reelUpdateError) throw reelUpdateError;
-    return { published: true, externalPostId: publishedReel.id };
+    return { published: true, externalPostId: publishedReel.id, remainingCapacity: Math.max(0, publishingLimit.remaining - 1) };
   }
 
   if (!imageUrl || !imageUrl.startsWith('http')) {
@@ -170,5 +210,5 @@ export async function publishApprovedInstagramContent(contentId: string) {
     .eq('id', contentId);
 
   if (updateError) throw updateError;
-  return { published: true, externalPostId: publishResult.id };
+  return { published: true, externalPostId: publishResult.id, remainingCapacity: Math.max(0, publishingLimit.remaining - 1) };
 }

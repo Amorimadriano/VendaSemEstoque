@@ -5,19 +5,28 @@ import { CheckCircle2, RefreshCw, Send } from 'lucide-react';
 
 type Product = { id: string; name: string };
 type Content = { id: string; channel: string; content_type: string; hook: string; caption: string; cta: string; status: string; product?: { name: string } };
+type InstagramLimit = { quotaTotal: number; quotaUsage: number; remaining: number; reserve: number; canPublish: boolean };
 
 export default function ContentApprovalQueue({ products }: { products: Product[] }) {
   const [contents, setContents] = useState<Content[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [publishError, setPublishError] = useState('');
+  const [publishNotice, setPublishNotice] = useState('');
   const [videoError, setVideoError] = useState('');
+  const [instagramLimit, setInstagramLimit] = useState<InstagramLimit | null>(null);
+  const [publishingContentId, setPublishingContentId] = useState('');
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
   const [selectedFacebookIds, setSelectedFacebookIds] = useState<string[]>([]);
   const [isApprovingBulk, setIsApprovingBulk] = useState(false);
   const [isPublishingBulk, setIsPublishingBulk] = useState(false);
   const [form, setForm] = useState({ productId: products[0]?.id || '', channel: 'instagram', contentType: 'REEL', hook: '', caption: '', script: '', cta: 'Confira os detalhes na loja parceira.' });
 
-  useEffect(() => { fetch('/api/admin/content').then((response) => response.ok ? response.json() : []).then(setContents).catch(() => setContents([])); }, []);
+  const refreshInstagramLimit = () => fetch('/api/admin/instagram-limit', { cache: 'no-store' }).then((response) => response.ok ? response.json() : null).then(setInstagramLimit).catch(() => setInstagramLimit(null));
+
+  useEffect(() => {
+    fetch('/api/admin/content').then((response) => response.ok ? response.json() : []).then(setContents).catch(() => setContents([]));
+    refreshInstagramLimit();
+  }, []);
 
   async function createContent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,6 +122,9 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
 
   async function publishContent(content: Content) {
     setPublishError('');
+    setPublishNotice('');
+    setPublishingContentId(content.id);
+    try {
     if (content.channel === 'instagram' && content.content_type === 'REEL') {
       const videoStatus = await fetch(`/api/admin/content/${content.id}/video/status`, { method: 'POST' });
       if (!videoStatus.ok) {
@@ -128,7 +140,20 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
       setPublishError(result.error || `Não foi possível publicar no ${channelName}.`);
       return;
     }
+    const result = await response.json().catch(() => ({}));
     setContents((current) => current.map((item) => item.id === content.id ? { ...item, status: 'PUBLISHED' } : item));
+    if (content.channel === 'instagram') {
+      const remaining = Number(result.remainingCapacity);
+      setPublishNotice(Number.isFinite(remaining)
+        ? `Publicado com sucesso no Instagram. Restam ${remaining} publicações na cota atual.`
+        : 'Publicado com sucesso no Instagram.');
+      await refreshInstagramLimit();
+    } else {
+      setPublishNotice('Publicado com sucesso no Facebook.');
+    }
+    } finally {
+      setPublishingContentId('');
+    }
   }
 
   async function generateVideo(content: Content) {
@@ -263,7 +288,9 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
       </form>
 
       {publishError && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{publishError}</p>}
+      {publishNotice && <p className="mt-4 rounded-md bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">{publishNotice}</p>}
       {videoError && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{videoError}</p>}
+      {instagramLimit && <p className={`mt-3 text-xs font-semibold ${instagramLimit.canPublish ? 'text-gray-600' : 'text-amber-700'}`}>Instagram: {instagramLimit.quotaUsage}/{instagramLimit.quotaTotal} usadas · {instagramLimit.remaining} restantes · reserva de segurança: {instagramLimit.reserve}</p>}
 
       <div className="mt-5 space-y-3">
         {contents.map((content) => (
@@ -309,8 +336,8 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
                   <Send className="h-4 w-4" /> Gerar vídeo
                 </button>
                 {!(content.channel === 'facebook' && content.content_type === 'REEL') && (
-                  <button onClick={() => publishContent(content)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800">
-                    <Send className="h-4 w-4" /> {content.channel === 'instagram' ? 'Publicar no Instagram' : 'Publicar no Facebook'}
+                  <button onClick={() => publishContent(content)} disabled={publishingContentId === content.id || (content.channel === 'instagram' && instagramLimit?.canPublish === false)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-40">
+                    <Send className="h-4 w-4" /> {publishingContentId === content.id ? 'Publicando...' : content.channel === 'instagram' ? 'Publicar no Instagram' : 'Publicar no Facebook'}
                   </button>
                 )}
                 {content.channel === 'facebook' && content.content_type === 'REEL' && (
