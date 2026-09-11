@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { publishApprovedFacebookContent } from '@/services/facebookPublisher';
+import { publishApprovedFacebookContent, publishApprovedFacebookReelContent } from '@/services/facebookPublisher';
+import { getSupabase } from '@/lib/supabase';
 
 export const runtime = 'edge';
 
@@ -19,7 +20,8 @@ export async function POST(request: NextRequest) {
 
   for (const [index, id] of input.data.ids.entries()) {
     try {
-      await publishApprovedFacebookContent(id);
+      const { data: content } = await getSupabase().from('marketing_content').select('content_type').eq('id', id).maybeSingle();
+      await (content?.content_type === 'REEL' ? publishApprovedFacebookReelContent(id) : publishApprovedFacebookContent(id));
       results.push({ id, published: true });
     } catch (error) {
       results.push({ id, published: false, error: error instanceof Error ? error.message : 'Falha ao publicar.' });

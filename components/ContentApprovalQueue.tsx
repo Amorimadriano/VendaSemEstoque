@@ -125,7 +125,7 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
     setPublishNotice('');
     setPublishingContentId(content.id);
     try {
-    if (content.channel === 'instagram' && content.content_type === 'REEL') {
+    if ((content.channel === 'instagram' || content.channel === 'facebook') && content.content_type === 'REEL') {
       const videoStatus = await fetch(`/api/admin/content/${content.id}/video/status`, { method: 'POST' });
       if (!videoStatus.ok) {
         const result = await videoStatus.json().catch(() => ({}));
@@ -272,7 +272,7 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
             <option value="facebook">Facebook</option>
           </select>
           <select value={form.contentType} onChange={(event) => setForm({ ...form, contentType: event.target.value })} className="rounded-md border border-gray-300 p-2">
-            {form.channel === 'instagram' && <option value="REEL">Reel</option>}
+            <option value="REEL">Reel</option>
             <option value="STORY">Story</option>
             <option value="POST">Post</option>
             <option value="CAROUSEL">Carrossel</option>
@@ -335,14 +335,9 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
                 <button onClick={() => generateVideo(content)} className="flex items-center gap-1 text-violet-700 hover:text-violet-800">
                   <Send className="h-4 w-4" /> Gerar vídeo
                 </button>
-                {!(content.channel === 'facebook' && content.content_type === 'REEL') && (
-                  <button onClick={() => publishContent(content)} disabled={publishingContentId === content.id || (content.channel === 'instagram' && instagramLimit?.canPublish === false)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-40">
+                <button onClick={() => publishContent(content)} disabled={publishingContentId === content.id || (content.channel === 'instagram' && instagramLimit?.canPublish === false)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-40">
                     <Send className="h-4 w-4" /> {publishingContentId === content.id ? 'Publicando...' : content.channel === 'instagram' ? 'Publicar no Instagram' : 'Publicar no Facebook'}
                   </button>
-                )}
-                {content.channel === 'facebook' && content.content_type === 'REEL' && (
-                  <span className="text-[11px] text-amber-700">Reel do Facebook exige vídeo processado.</span>
-                )}
               </div>
             )}
           </div>
