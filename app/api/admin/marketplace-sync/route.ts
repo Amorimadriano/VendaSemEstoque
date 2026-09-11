@@ -12,7 +12,7 @@ export async function GET() {
 
 export async function POST() {
   try {
-    return NextResponse.json(await runProductDiscovery());
+    return NextResponse.json(await runProductDiscovery(['mercadolivre', 'aliexpress', 'shopee', 'amazon']));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha na sincronização.' }, { status: 500 });
   }
