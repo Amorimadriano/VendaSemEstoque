@@ -260,8 +260,7 @@ export class AmazonIntegration implements MarketplaceIntegration {
       return items.map((item) => this.convertAmazonItem(item)).filter((item): item is ExternalProduct => Boolean(item)).slice(0, Number(limit) || 10);
     } catch (error) {
       console.warn('[Amazon] Erro ao buscar produtos:', error);
-      // Não publique dados curados como se fossem ofertas verificadas da Amazon.
-      return [];
+      throw error;
     }
   }
 

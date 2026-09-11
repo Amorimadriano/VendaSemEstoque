@@ -125,7 +125,7 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
   // ETAPA 1: Sincronizar todos os marketplaces (Mercado Livre, AliExpress, Shopee)
   let syncResult: any = { marketplaces: [], discovered: 0, published: 0, logs: [] };
   try {
-    syncResult = await runProductDiscovery();
+    syncResult = await runProductDiscovery(['mercadolivre', 'aliexpress', 'shopee']);
   } catch (err) {
     console.warn('[AutonomousAgent] Sincronização de catálogo gerou aviso:', err);
   }

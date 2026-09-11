@@ -2,6 +2,7 @@ export default {
   async scheduled(_controller, env) {
     const endpoints = [
       'autonomous-workflow',
+      'amazon-discover',
       'affiliate-conversions',
     ];
     for (const endpoint of endpoints) {

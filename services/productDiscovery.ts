@@ -356,17 +356,18 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
   return { log, discovered };
 }
 
-export async function runProductDiscovery() {
+export async function runProductDiscovery(marketplaces: string[] = MARKETPLACES) {
+  const selectedMarketplaces = [...new Set(marketplaces.map((marketplace) => marketplace.trim().toLowerCase()).filter(Boolean))];
   const discovered = new Map<string, ExternalProduct>();
   const logs: MarketplaceSyncLog[] = [];
 
-  for (const marketplaceSlug of MARKETPLACES) {
+  for (const marketplaceSlug of selectedMarketplaces) {
     const result = await syncMarketplace(marketplaceSlug);
     logs.push(result.log);
     for (const [key, product] of result.discovered.entries()) discovered.set(key, product);
   }
 
-  for (const marketplaceSlug of MARKETPLACES) {
+  for (const marketplaceSlug of selectedMarketplaces) {
     try {
       const integration = getMarketplaceIntegration(marketplaceSlug);
       const supabase = getSupabase();
@@ -402,7 +403,7 @@ export async function runProductDiscovery() {
 
   const published = logs.reduce((total, log) => total + log.published, 0);
 
-  return { marketplaces: MARKETPLACES, searched: SEARCHES.length, discovered: discovered.size, published, rankingUpdated: published, logs };
+  return { marketplaces: selectedMarketplaces, searched: SEARCHES.length, discovered: discovered.size, published, rankingUpdated: published, logs };
 }
 
 if (require.main === module) {
