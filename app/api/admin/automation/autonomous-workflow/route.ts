@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runAutonomousMarketplaceAndPublishWorkflow } from '@/services/autonomousWorkflowAgent';
+import { runWithAutomationLog } from '@/services/automationRun';
 
 export const runtime = 'edge';
 
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runAutonomousMarketplaceAndPublishWorkflow();
+    const result = await runWithAutomationLog('autonomous-workflow', runAutonomousMarketplaceAndPublishWorkflow);
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

@@ -10,6 +10,7 @@
     "deploy:automation": "wrangler deploy --config cloudflare/automation-worker.wrangler.toml",
     "start": "next start",
     "lint": "next lint",
+    "test": "tsx --test tests/**/*.test.ts",
     "db:push": "prisma db push",
     "db:seed": "node --import tsx/esm prisma/seed.ts",
     "db:studio": "prisma studio",

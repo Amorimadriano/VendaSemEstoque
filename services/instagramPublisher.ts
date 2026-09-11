@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase';
+import { validateProductQuality } from '@/lib/productQuality';
 
 export async function publishApprovedInstagramContent(contentId: string) {
   const token = process.env.META_ACCESS_TOKEN;
@@ -10,7 +11,7 @@ export async function publishApprovedInstagramContent(contentId: string) {
   const supabase = getSupabase();
   const { data: content, error } = await supabase
     .from('marketing_content')
-    .select('*, product:products(id,image_url)')
+    .select('*, product:products(id,name,description,image_url,affiliate_url,price,status)')
     .eq('id', contentId)
     .eq('channel', 'instagram')
     .eq('status', 'APPROVED')
@@ -30,7 +31,9 @@ export async function publishApprovedInstagramContent(contentId: string) {
   if (duplicateError) throw duplicateError;
   if (existingPublication) throw new Error('Este produto já possui uma publicação ativa no Instagram.');
 
-  const product = content.product as { id?: string; image_url?: string } | null;
+  const product = content.product as { id?: string; name?: string; description?: string; image_url?: string; affiliate_url?: string; price?: number; status?: string } | null;
+  const quality = validateProductQuality(product || {});
+  if (!quality.valid) throw new Error(`Produto não atende aos critérios de publicação: ${quality.errors.join(', ')}.`);
   const caption = `${content.hook}\n\n${content.caption}\n\n${content.cta}\n🔗 Acesse o link na bio para ver a oferta e consultar a disponibilidade atualizada.`;
   const imageUrl = product?.image_url;
 
@@ -90,7 +93,7 @@ export async function publishApprovedInstagramContent(contentId: string) {
     const publishedReel = await publishReelResponse.json() as { id?: string; error?: { message?: string } };
     if (!publishReelResponse.ok || !publishedReel.id) throw new Error(publishedReel.error?.message || `Meta API retornou ${publishReelResponse.status} ao publicar o Reel.`);
 
-    const { error: reelUpdateError } = await supabase.from('marketing_content').update({ status: 'PUBLISHED', external_post_id: publishedReel.id, published_at: new Date().toISOString(), publication_error: null, updated_at: new Date().toISOString() }).eq('id', contentId);
+    const { error: reelUpdateError } = await supabase.from('marketing_content').update({ status: 'PUBLISHED', external_post_id: publishedReel.id, published_at: new Date().toISOString(), publication_error: null, attempt_count: 0, next_retry_at: null, processing_started_at: null, updated_at: new Date().toISOString() }).eq('id', contentId);
     if (reelUpdateError) throw reelUpdateError;
     return { published: true, externalPostId: publishedReel.id };
   }
@@ -159,6 +162,9 @@ export async function publishApprovedInstagramContent(contentId: string) {
       external_post_id: publishResult.id,
       published_at: new Date().toISOString(),
       publication_error: null,
+      attempt_count: 0,
+      next_retry_at: null,
+      processing_started_at: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', contentId);

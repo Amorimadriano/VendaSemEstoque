@@ -16,10 +16,12 @@ import {
   AlertCircle,
   ExternalLink,
   Trash2,
+  Search,
 } from 'lucide-react';
 import MarketingAgent from '@/components/MarketingAgent';
 import ContentApprovalQueue from '@/components/ContentApprovalQueue';
 import MarketplaceSyncStatus from '@/components/MarketplaceSyncStatus';
+import OperationsHealth from '@/components/OperationsHealth';
 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
@@ -30,6 +32,10 @@ export default function AdminDashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [productMarketplace, setProductMarketplace] = useState('');
+  const [productStatus, setProductStatus] = useState('');
+  const [productPage, setProductPage] = useState(1);
 
   // Form state para novo produto
   const [newProduct, setNewProduct] = useState({
@@ -65,7 +71,7 @@ export default function AdminDashboardPage() {
     try {
       const [resMetrics, resProducts, resCats, resMarkets] = await Promise.all([
         fetch('/api/admin/metrics'),
-        fetch('/api/products?limit=50'),
+        fetch('/api/products?limit=200'),
         fetch('/api/categories'),
         fetch('/api/marketplaces'),
       ]);
@@ -101,6 +107,10 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [productSearch, productMarketplace, productStatus]);
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,6 +227,16 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const filteredProducts = products.filter((product) => {
+    const search = productSearch.trim().toLowerCase();
+    return (!search || product.name?.toLowerCase().includes(search) || product.externalProductId?.toLowerCase().includes(search))
+      && (!productMarketplace || product.marketplace?.slug === productMarketplace)
+      && (!productStatus || product.status === productStatus);
+  });
+  const productPageSize = 15;
+  const productPageCount = Math.max(1, Math.ceil(filteredProducts.length / productPageSize));
+  const visibleProducts = filteredProducts.slice((productPage - 1) * productPageSize, productPage * productPageSize);
+
   if (loading || !metrics) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
@@ -312,6 +332,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      <OperationsHealth />
       <MarketplaceSyncStatus />
       <ContentApprovalQueue products={products} />
       <MarketingAgent products={products} summary={summary} />
@@ -322,7 +343,7 @@ export default function AdminDashboardPage() {
           <div className="flex items-center gap-3">
             <h3 className="text-base font-bold text-gray-900">Gerenciamento de Produtos Cadastrados</h3>
             <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded-full font-medium">
-              {products.length} {products.length === 1 ? 'item' : 'itens'}
+              {filteredProducts.length} {filteredProducts.length === 1 ? 'item' : 'itens'}
             </span>
           </div>
 
@@ -352,6 +373,12 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
+        <div className="grid gap-3 border-b border-gray-100 bg-gray-50 px-5 py-3 sm:grid-cols-3">
+          <label className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" /><input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Buscar produto ou SKU" className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-xs" /></label>
+          <select value={productMarketplace} onChange={(event) => setProductMarketplace(event.target.value)} className="rounded-md border border-gray-300 p-2 text-xs"><option value="">Todos os marketplaces</option>{marketplaces.map((marketplace) => <option key={marketplace.id} value={marketplace.slug}>{marketplace.name}</option>)}</select>
+          <select value={productStatus} onChange={(event) => setProductStatus(event.target.value)} className="rounded-md border border-gray-300 p-2 text-xs"><option value="">Todos os status</option><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option><option value="OUT_OF_STOCK">Sem estoque</option><option value="PENDING_REVIEW">Em revisão</option></select>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-gray-700">
             <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200 uppercase">
@@ -375,7 +402,7 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {products.map((p) => {
+              {visibleProducts.map((p) => {
                 const isSelected = selectedProductIds.includes(p.id);
                 const imageSrc = p.imageUrl ? `/api/images?src=${encodeURIComponent(p.imageUrl)}` : '';
                 return (
@@ -442,7 +469,7 @@ export default function AdminDashboardPage() {
                   </tr>
                 );
               })}
-              {!products.length && (
+              {!visibleProducts.length && (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-gray-500">
                     Nenhum produto cadastrado no momento.
@@ -452,6 +479,7 @@ export default function AdminDashboardPage() {
             </tbody>
           </table>
         </div>
+        {productPageCount > 1 && <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-xs"><span>Página {productPage} de {productPageCount}</span><div className="flex gap-2"><button type="button" disabled={productPage === 1} onClick={() => setProductPage((page) => page - 1)} className="rounded border px-3 py-1.5 disabled:opacity-40">Anterior</button><button type="button" disabled={productPage === productPageCount} onClick={() => setProductPage((page) => page + 1)} className="rounded border px-3 py-1.5 disabled:opacity-40">Próxima</button></div></div>}
       </section>
 
       {/* Modal de Cadastro Manual de Produto */}

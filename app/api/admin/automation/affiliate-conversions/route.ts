@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { syncAffiliateConversions } from '@/services/affiliateConversionSync';
+import { runWithAutomationLog } from '@/services/automationRun';
 
 export const runtime = 'edge';
 
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     if ((startDate && Number.isNaN(startDate.getTime())) || (endDate && Number.isNaN(endDate.getTime()))) {
       return NextResponse.json({ error: 'Período inválido.' }, { status: 400 });
     }
-    return NextResponse.json(await syncAffiliateConversions(startDate, endDate));
+    return NextResponse.json(await runWithAutomationLog('affiliate-conversions', () => syncAffiliateConversions(startDate, endDate)));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao importar conversões afiliadas.' }, { status: 500 });
   }

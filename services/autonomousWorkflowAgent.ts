@@ -4,6 +4,7 @@ import { generateContentDraftForProduct, generateContentDrafts } from '@/service
 import { publishApprovedFacebookContent } from '@/services/facebookPublisher';
 import { publishApprovedInstagramContent } from '@/services/instagramPublisher';
 import { createCreatomateVideo, refreshCreatomateVideo } from '@/services/creatomateVideo';
+import { nextRetryAt } from '@/services/automationRun';
 
 export interface AutonomousWorkflowResult {
   startedAt: string;
@@ -49,14 +50,15 @@ async function publishDailyChannel(channel: 'facebook' | 'instagram') {
 
   const { data: pending, error } = await supabase
     .from('marketing_content')
-    .select('id, product_id, status, content_type')
+    .select('id, product_id, status, content_type, attempt_count, next_retry_at')
     .eq('channel', channel)
     .in('status', ['DRAFT', 'APPROVED'])
     .order('created_at', { ascending: true })
     .limit(50);
   if (error) throw error;
 
-  let content = (pending || []).find((item) => !publishedProductIds.has(item.product_id));
+  const now = Date.now();
+  let content = (pending || []).find((item) => !publishedProductIds.has(item.product_id) && (!item.next_retry_at || new Date(item.next_retry_at).getTime() <= now));
   if (!content) {
     const { data: products, error: productsError } = await supabase
       .from('products')
@@ -72,6 +74,8 @@ async function publishDailyChannel(channel: 'facebook' | 'instagram') {
   stats.attempted = 1;
 
   try {
+    const { error: lockError } = await supabase.from('marketing_content').update({ processing_started_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', content.id);
+    if (lockError) throw lockError;
     if (content.status === 'DRAFT') {
       const { error: approvalError } = await supabase
         .from('marketing_content')
@@ -100,7 +104,16 @@ async function publishDailyChannel(channel: 'facebook' | 'instagram') {
     stats.published = 1;
   } catch (publishError) {
     stats.failed = 1;
-    stats.errors.push(`Content ${content.id}: ${publishError instanceof Error ? publishError.message : String(publishError)}`);
+    const message = publishError instanceof Error ? publishError.message : String(publishError);
+    stats.errors.push(`Content ${content.id}: ${message}`);
+    const attempts = Number(content.attempt_count || 0) + 1;
+    await supabase.from('marketing_content').update({
+      attempt_count: attempts,
+      next_retry_at: nextRetryAt(attempts),
+      processing_started_at: null,
+      publication_error: message,
+      updated_at: new Date().toISOString(),
+    }).eq('id', content.id);
   }
   return stats;
 }

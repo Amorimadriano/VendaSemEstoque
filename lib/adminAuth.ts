@@ -10,7 +10,8 @@ function fromBase64Url(value: string) {
 }
 
 async function sign(value: string) {
-  const secret = process.env.NEXTAUTH_SECRET || 'change-this-secret';
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret || secret.length < 32) throw new Error('NEXTAUTH_SECRET deve estar configurado com pelo menos 32 caracteres.');
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value));
   return toBase64Url(String.fromCharCode(...new Uint8Array(signature)));

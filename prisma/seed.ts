@@ -261,7 +261,7 @@ async function main() {
         totalConversions: Math.floor(Math.random() * 15) + 2,
         conversionRate: 0.05,
         ctr: 0.12,
-        totalCommission: prod.commissionValue * 3,
+        totalCommission: Number(prod.commissionValue) * 3,
       },
     });
 
