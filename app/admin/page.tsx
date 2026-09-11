@@ -22,6 +22,7 @@ import MarketingAgent from '@/components/MarketingAgent';
 import ContentApprovalQueue from '@/components/ContentApprovalQueue';
 import MarketplaceSyncStatus from '@/components/MarketplaceSyncStatus';
 import OperationsHealth from '@/components/OperationsHealth';
+import FacebookWeeklyTasks from '@/components/FacebookWeeklyTasks';
 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
@@ -333,6 +334,7 @@ export default function AdminDashboardPage() {
       </div>
 
       <OperationsHealth />
+      <FacebookWeeklyTasks />
       <MarketplaceSyncStatus />
       <ContentApprovalQueue products={products} />
       <MarketingAgent products={products} summary={summary} />
