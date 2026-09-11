@@ -70,7 +70,8 @@ export class AmazonIntegration implements MarketplaceIntegration {
   private accessKey = process.env.AMAZON_ACCESS_KEY;
   private secretKey = process.env.AMAZON_SECRET_KEY;
   private region = 'us-east-1';
-  private host = 'webservices.amazon.com';
+  private host = 'webservices.amazon.com.br';
+  private marketplace = 'www.amazon.com.br';
 
   private hasCredentials(): boolean {
     return Boolean(this.accessKey && this.secretKey && this.partnerTag);
@@ -85,15 +86,15 @@ export class AmazonIntegration implements MarketplaceIntegration {
   private extractPrice(item: AmazonSearchItem): number {
     const listing = item.Offers?.Listings?.[0];
     const amount = listing?.Price?.Amount;
-    if (typeof amount === 'number') return Number((amount / 100).toFixed(2));
+    if (typeof amount === 'number') return Number(amount.toFixed(2));
     if (typeof amount === 'string') {
       const parsed = Number(amount);
-      if (Number.isFinite(parsed)) return Number((parsed / 100).toFixed(2));
+      if (Number.isFinite(parsed)) return Number(parsed.toFixed(2));
     }
     const displayAmount = listing?.Price?.DisplayAmount || '';
     const match = displayAmount.match(/\d+[.,]\d+/);
     if (match) {
-      return Number(match[0].replace('.', '').replace(',', '.')) / 100;
+      return Number(match[0].replace('.', '').replace(',', '.'));
     }
     return 0;
   }
@@ -241,6 +242,7 @@ export class AmazonIntegration implements MarketplaceIntegration {
       SearchIndex: category || 'All',
       PartnerTag: this.partnerTag,
       PartnerType: 'Associates',
+      Marketplace: this.marketplace,
       ItemCount: Math.min(Math.max(Number(limit) || 10, 1), 10),
       Resources: [
         'Images.Primary.Large',
@@ -363,6 +365,7 @@ export class AmazonIntegration implements MarketplaceIntegration {
         ItemIds: [safeId],
         PartnerTag: this.partnerTag,
         PartnerType: 'Associates',
+        Marketplace: this.marketplace,
         Resources: [
           'Images.Primary.Large',
           'ItemInfo.ByLineInfo',
