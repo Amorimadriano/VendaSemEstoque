@@ -165,8 +165,15 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
     console.warn('[AutonomousAgent] Geração de rascunhos gerou aviso:', err);
   }
 
-  // ETAPA 3: Aprovar e publicar no máximo um conteúdo por canal diariamente.
-  const publishStats = await publishDailyChannel('facebook');
+  // ETAPA 3: Aprovar e publicar no máximo um conteúdo no Instagram diariamente.
+  let publishStats = { attempted: 0, published: 0, failed: 0, errors: [] as string[] };
+  if (process.env.META_FACEBOOK_PAGE_ID) {
+    try {
+      publishStats = await publishDailyChannel('facebook');
+    } catch (err: any) {
+      console.warn('[AutonomousAgent] Publicação Facebook opcional ignorada:', err?.message || err);
+    }
+  }
   const instagramPublish = await publishDailyChannel('instagram');
 
   const finishedAt = new Date().toISOString();

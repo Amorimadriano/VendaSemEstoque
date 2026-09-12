@@ -37,10 +37,10 @@ export async function generateContentDrafts() {
   const { data: products, error } = await supabase.from('products').select('id,name,description,key_benefits,is_trending,is_best_seller,sales_count,commission_percentage,marketplace:marketplaces(name)').eq('status', 'ACTIVE').limit(50);
   if (error) throw error;
 
-  const candidates = ((products || []) as Product[]).filter((product) => scoreProduct(product) >= 45).sort((first, second) => scoreProduct(second) - scoreProduct(first)).slice(0, 2);
+  const candidates = ((products || []) as Product[]).filter((product) => scoreProduct(product) >= 45).sort((first, second) => scoreProduct(second) - scoreProduct(first)).slice(0, 3);
   let created = 0;
   for (const product of candidates) {
-    for (const channel of ['instagram', 'facebook'] as const) {
+    for (const channel of ['instagram'] as const) {
       const { data: existing } = await supabase.from('marketing_content').select('id').eq('product_id', product.id).eq('channel', channel).gte('created_at', `${today}T00:00:00.000Z`).limit(1);
       if (existing?.length) continue;
       const { error: insertError } = await supabase.from('marketing_content').insert({ id: crypto.randomUUID(), ...createDraft(product, channel), created_at: new Date().toISOString(), updated_at: new Date().toISOString() });

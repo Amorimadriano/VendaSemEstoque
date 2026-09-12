@@ -54,11 +54,11 @@ type ProductRow = {
 
 const WEEK_DAYS = [
   { dayOfWeek: 'Segunda-feira', focus: 'Descoberta e Gancho de Curiosidade', channel: 'instagram' as const, contentType: 'REEL' as const, angle: 'Problema e Solução', scheduledDayIndex: 1 },
-  { dayOfWeek: 'Terça-feira', focus: 'Educação e Critérios de Escolha', channel: 'facebook' as const, contentType: 'POST' as const, angle: 'Educativo / Análise', scheduledDayIndex: 2 },
+  { dayOfWeek: 'Terça-feira', focus: 'Educação e Critérios de Escolha', channel: 'instagram' as const, contentType: 'POST' as const, angle: 'Educativo / Análise', scheduledDayIndex: 2 },
   { dayOfWeek: 'Quarta-feira', focus: 'Superação de Dúvidas e Objeções', channel: 'instagram' as const, contentType: 'CAROUSEL' as const, angle: 'Dúvidas e FAQ', scheduledDayIndex: 3 },
-  { dayOfWeek: 'Quinta-feira', focus: 'Demonstração de Recursos e Uso Prático', channel: 'facebook' as const, contentType: 'POST' as const, angle: 'Demonstração', scheduledDayIndex: 4 },
+  { dayOfWeek: 'Quinta-feira', focus: 'Demonstração de Recursos e Uso Prático', channel: 'instagram' as const, contentType: 'REEL' as const, angle: 'Demonstração', scheduledDayIndex: 4 },
   { dayOfWeek: 'Sexta-feira', focus: 'Conversão com Oferta e Condições Reais', channel: 'instagram' as const, contentType: 'REEL' as const, angle: 'Oferta / Conversão', scheduledDayIndex: 5 },
-  { dayOfWeek: 'Sábado', focus: 'Comparativo de Custo-Benefício', channel: 'facebook' as const, contentType: 'POST' as const, angle: 'Comparativo Justo', scheduledDayIndex: 6 },
+  { dayOfWeek: 'Sábado', focus: 'Comparativo de Custo-Benefício', channel: 'instagram' as const, contentType: 'POST' as const, angle: 'Comparativo Justo', scheduledDayIndex: 6 },
   { dayOfWeek: 'Domingo', focus: 'Recapitulação Semanal e CTA Final', channel: 'instagram' as const, contentType: 'STORY' as const, angle: 'Resumo / CTA Direto', scheduledDayIndex: 0 },
 ];
 

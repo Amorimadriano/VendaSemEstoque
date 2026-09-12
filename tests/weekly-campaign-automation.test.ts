@@ -26,15 +26,15 @@ test('buildWeeklyCampaignPlan creates a full 7-day multi-channel funnel calendar
   assert.ok(days.includes('Sábado'));
   assert.ok(days.includes('Domingo'));
 
-  // Valida que há alternância de canais e formatos
+  // Valida que o foco está 100% no Instagram com formatos variados
   const channels = new Set(plan.calendar.map((c) => c.channel));
   assert.ok(channels.has('instagram'));
-  assert.ok(channels.has('facebook'));
 
   const contentTypes = new Set(plan.calendar.map((c) => c.contentType));
   assert.ok(contentTypes.has('REEL'));
   assert.ok(contentTypes.has('POST'));
   assert.ok(contentTypes.has('CAROUSEL'));
+  assert.ok(contentTypes.has('STORY'));
 
   // Valida conteúdo personalizado por produto
   const monday = plan.calendar.find((c) => c.dayOfWeek === 'Segunda-feira');
