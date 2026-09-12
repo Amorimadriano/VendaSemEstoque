@@ -118,12 +118,24 @@ export async function publishApprovedFacebookReelContent(contentId: string) {
     throw new Error(startResult.error?.message || `Meta não iniciou o upload do Reel (${startResponse.status}).`);
   }
 
+  // Baixar o vídeo binário para enviar via byte upload na URL de upload da Meta
+  const videoFileRes = await fetch(video.video_url);
+  if (!videoFileRes.ok) {
+    throw new Error(`Não foi possível baixar o vídeo para envio (${videoFileRes.status}): ${video.video_url}`);
+  }
+  const videoBuffer = Buffer.from(await videoFileRes.arrayBuffer());
+
   const uploadResponse = await fetch(startResult.upload_url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: new URLSearchParams({ file_url: video.video_url }),
+    headers: {
+      Authorization: `OAuth ${token}`,
+      offset: '0',
+      file_size: videoBuffer.length.toString(),
+      'Content-Type': 'application/octet-stream',
+    },
+    body: videoBuffer,
   });
-  const uploadResult = await uploadResponse.json() as { success?: boolean; error?: { message?: string } };
+  const uploadResult = await uploadResponse.json().catch(() => ({})) as { success?: boolean; error?: { message?: string } };
   if (!uploadResponse.ok || uploadResult.success === false) {
     throw new Error(uploadResult.error?.message || `Meta não recebeu o vídeo do Reel (${uploadResponse.status}).`);
   }
