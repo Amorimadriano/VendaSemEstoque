@@ -5,6 +5,7 @@ import { publishApprovedFacebookContent } from '@/services/facebookPublisher';
 import { publishApprovedInstagramContent } from '@/services/instagramPublisher';
 import { createCreatomateVideo, refreshCreatomateVideo } from '@/services/creatomateVideo';
 import { nextRetryAt } from '@/services/automationRun';
+import { syncAllActiveAbTestMetrics } from '@/services/abTestMetricSync';
 
 export interface AutonomousWorkflowResult {
   startedAt: string;
@@ -14,6 +15,11 @@ export interface AutonomousWorkflowResult {
     discovered: number;
     published: number;
     logs: any[];
+  };
+  abTestSync?: {
+    testsChecked: number;
+    testsUpdated: number;
+    winnersFound: number;
   };
   drafts: {
     candidates: number;
@@ -85,18 +91,26 @@ async function publishDailyChannel(channel: 'facebook' | 'instagram') {
     }
 
     if (channel === 'instagram' && content.content_type === 'REEL') {
-      await createCreatomateVideo(content.id);
-      let ready = false;
-      for (let attempt = 0; attempt < 12; attempt += 1) {
-        const render = await refreshCreatomateVideo(content.id);
-        if (render.status.toUpperCase() === 'SUCCEEDED' && render.videoUrl) {
-          ready = true;
-          break;
+      try {
+        await createCreatomateVideo(content.id);
+        let ready = false;
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const render = await refreshCreatomateVideo(content.id);
+          if (render.status.toUpperCase() === 'SUCCEEDED' && render.videoUrl) {
+            ready = true;
+            break;
+          }
+          if (render.status.toLowerCase() === 'failed') throw new Error('Render do Reel falhou.');
+          await wait(5000);
         }
-        if (render.status.toLowerCase() === 'failed') throw new Error('Render do Reel falhou.');
-        await wait(5000);
+        if (!ready) throw new Error('Render do Reel não ficou pronto no tempo esperado.');
+      } catch (videoErr) {
+        console.warn(`[AutonomousAgent] Render de vídeo falhou para ${content.id}, tentando fallback para POST com imagem:`, videoErr);
+        await supabase
+          .from('marketing_content')
+          .update({ content_type: 'POST', updated_at: new Date().toISOString() })
+          .eq('id', content.id);
       }
-      if (!ready) throw new Error('Render do Reel não ficou pronto no tempo esperado.');
     }
 
     if (channel === 'facebook') await publishApprovedFacebookContent(content.id);
@@ -130,6 +144,19 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
     console.warn('[AutonomousAgent] Sincronização de catálogo gerou aviso:', err);
   }
 
+  // ETAPA 1.5: Sincronizar métricas reais dos testes A/B ativos
+  let abTestSyncResult = { testsChecked: 0, testsUpdated: 0, winnersFound: 0 };
+  try {
+    const abSync = await syncAllActiveAbTestMetrics();
+    abTestSyncResult = {
+      testsChecked: abSync.testsChecked,
+      testsUpdated: abSync.testsUpdated,
+      winnersFound: abSync.winnersFound,
+    };
+  } catch (err) {
+    console.warn('[AutonomousAgent] Sincronização de testes A/B gerou aviso:', err);
+  }
+
   // ETAPA 2: Gerar rascunhos de conteúdo otimizados para os produtos com melhor pontuação
   let draftResult: any = { candidates: 0, draftsCreated: 0 };
   try {
@@ -153,6 +180,7 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
       published: syncResult.published || 0,
       logs: syncResult.logs || [],
     },
+    abTestSync: abTestSyncResult,
     drafts: draftResult,
     facebookPublish: publishStats,
     instagramPublish,

@@ -4,6 +4,7 @@ export default {
       'amazon-discover',
       'autonomous-workflow',
       'affiliate-conversions',
+      'weekly-campaigns',
     ];
     for (const endpoint of endpoints) {
       const response = await fetch(`${env.APP_BASE_URL}/api/admin/automation/${endpoint}`, {

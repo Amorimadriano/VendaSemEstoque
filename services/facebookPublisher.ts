@@ -22,7 +22,17 @@ export async function publishApprovedFacebookContent(contentId: string) {
   if (duplicateError) throw duplicateError;
   if (existingPublication) throw new Error('Este produto já possui uma publicação ativa no Facebook.');
   if (content.content_type === 'REEL') {
-    throw new Error('Reels do Facebook exigem um vídeo processado. Este fluxo ainda não possui um vídeo publicado para este conteúdo.');
+    const { data: video } = await supabase
+      .from('marketing_videos')
+      .select('video_url,status')
+      .eq('content_id', contentId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (video?.video_url && ['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(String(video.status || '').toUpperCase())) {
+      return publishApprovedFacebookReelContent(contentId);
+    }
   }
 
   const product = content.product as { id?: string; name?: string; description?: string; image_url?: string; affiliate_url?: string; price?: number; status?: string } | null;

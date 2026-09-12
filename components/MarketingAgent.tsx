@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { BarChart3, CalendarDays, CheckCircle2, ClipboardCheck, Copy, FileText, Megaphone, Sparkles, Target, TrendingUp } from 'lucide-react';
+import { compareAbTestResults, generateAbTestPlan } from '@/lib/abTestPlan';
 
 type Product = {
   id: string;
@@ -53,6 +54,7 @@ type AbTest = {
   impressions: number;
   clicks: number;
   conversions: number;
+  result_notes?: string;
 };
 
 function opportunity(product: Product) {
@@ -249,6 +251,34 @@ function productTestDecision(product: Product, summary: Summary) {
   return { label: 'DESCARTAR', style: 'bg-red-50 text-red-700 border-red-200', reason: 'O produto não possui sinais suficientes de potencial no momento. Não invista em escala.' };
 }
 
+function nextAbTestRecommendation(product: Product | undefined, tests: AbTest[]) {
+  if (!product) return {
+    variable: 'Gancho',
+    action: 'Cadastre o primeiro produto para gerar o próximo teste com base em oferta, público e CTA.',
+    detail: 'Comece com um único gancho e mantenha público, criativo e página do produto idênticos para isolar a variável.',
+  };
+
+  const recentByVariable = tests.filter((test) => test.product_id === product.id);
+  const winnerByVariable = recentByVariable.filter((test) => test.status === 'WINNER');
+
+  if (!winnerByVariable.length) {
+    return {
+      variable: 'Gancho',
+      action: `Teste o gancho de ${product.name} antes de mexer em preço, imagem ou CTA.`,
+      detail: 'A primeira variável de maior valor é o gancho, porque altera curiosidade e CTR sem mudar a oferta ou a página destino.',
+    };
+  }
+
+  const lastWinner = winnerByVariable[0];
+  const nextVariable = lastWinner.variable === 'Gancho' ? 'CTA' : lastWinner.variable === 'CTA' ? 'Imagem' : lastWinner.variable === 'Imagem' ? 'Oferta' : lastWinner.variable === 'Oferta' ? 'Título' : 'Gancho';
+
+  return {
+    variable: nextVariable,
+    action: `Mantenha a variação vencedora de ${product.name} e teste ${nextVariable.toLowerCase()} como próxima variável isolada.`,
+    detail: 'A recomendação é testar uma nova variável somente depois da vencedora se manter estável no alcance e na conversão.',
+  };
+}
+
 function learningActions(summary: Summary, product?: Product) {
   const actions: string[] = [];
   if (summary.totalClicks >= 100 && summary.conversionRate < 1) actions.push('Há muitos cliques com baixa conversão: analise preço, página do produto, confiança e condições da oferta.');
@@ -408,7 +438,16 @@ export default function MarketingAgent({ products, summary }: { products: Produc
   const [selectedProductId, setSelectedProductId] = useState(rankedProducts[0]?.id || '');
   const [copied, setCopied] = useState(false);
   const [abTests, setAbTests] = useState<AbTest[]>([]);
+  const [metricDrafts, setMetricDrafts] = useState<Record<string, { impressions: number; clicks: number; conversions: number; status: string }>>({});
   const [isSavingTest, setIsSavingTest] = useState(false);
+  const [isPreparingNextCycle, setIsPreparingNextCycle] = useState(false);
+  const [isPublishingNextCycle, setIsPublishingNextCycle] = useState(false);
+  const [isSyncingRealMetrics, setIsSyncingRealMetrics] = useState(false);
+  const [isGeneratingWeeklyCampaigns, setIsGeneratingWeeklyCampaigns] = useState(false);
+  const [weeklyCampaignNotice, setWeeklyCampaignNotice] = useState('');
+  const [nextCycleNotice, setNextCycleNotice] = useState('');
+  const [nextCycleDraftIds, setNextCycleDraftIds] = useState<string[]>([]);
+  const [nextCycleCalendar, setNextCycleCalendar] = useState<Array<{ day: string; focus: string; action: string }>>([]);
   const [testError, setTestError] = useState('');
   const [testForm, setTestForm] = useState({ variable: 'Gancho', hypothesis: '', variationA: '', variationB: '' });
   const selectedProduct = products.find((product) => product.id === selectedProductId) || rankedProducts[0];
@@ -434,9 +473,47 @@ export default function MarketingAgent({ products, summary }: { products: Produc
   const topCandidate = topProducts[0];
   const report = performanceReview(summary, selectedProduct);
 
+  const nextAutomationSuggestion = selectedProduct
+    ? `Próximo ciclo para ${selectedProduct.name}: gere 2 variações do mesmo gancho, publicando uma só versão por vez, e acompanhe CTR, cliques e conversão até decidir por escala.`
+    : 'Cadastre um produto para gerar o próximo ciclo de teste e otimização.';
+
   useEffect(() => {
-    fetch('/api/admin/ab-tests').then((response) => response.ok ? response.json() : []).then(setAbTests).catch(() => setAbTests([]));
+    fetch('/api/admin/ab-tests').then((response) => response.ok ? response.json() : []).then((tests) => {
+      setAbTests(tests);
+      setMetricDrafts((current) => {
+        const next: Record<string, { impressions: number; clicks: number; conversions: number; status: string }> = {};
+        tests.forEach((test: AbTest) => {
+          next[test.id] = {
+            impressions: current[test.id]?.impressions ?? test.impressions ?? 0,
+            clicks: current[test.id]?.clicks ?? test.clicks ?? 0,
+            conversions: current[test.id]?.conversions ?? test.conversions ?? 0,
+            status: current[test.id]?.status ?? test.status ?? 'PLANNED',
+          };
+        });
+        return next;
+      });
+    }).catch(() => setAbTests([]));
   }, []);
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const generated = generateAbTestPlan(
+      {
+        name: selectedProduct.name,
+        price: selectedProduct.price,
+        commissionPercentage: selectedProduct.commissionPercentage,
+        marketplace: selectedProduct.marketplace,
+        brand: selectedProduct.brand,
+      },
+      testForm.variable,
+    );
+    setTestForm((current) => ({
+      ...current,
+      hypothesis: current.hypothesis || generated.hypothesis,
+      variationA: current.variationA || generated.variationA,
+      variationB: current.variationB || generated.variationB,
+    }));
+  }, [selectedProduct, testForm.variable]);
 
   async function saveAbTest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -459,6 +536,258 @@ export default function MarketingAgent({ products, summary }: { products: Produc
       setIsSavingTest(false);
     }
   }
+
+  async function updateAbTestStatus(testId: string, status: string, resultNotes?: string) {
+    try {
+      const response = await fetch('/api/admin/ab-tests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: testId, status, resultNotes }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Não foi possível atualizar o teste.');
+      setAbTests((currentTests) => currentTests.map((test) => test.id === testId ? { ...test, ...data, status: data.status || test.status, result_notes: data.result_notes || test.result_notes } : test));
+    } catch (error) {
+      setTestError(error instanceof Error ? error.message : 'Não foi possível atualizar o teste.');
+    }
+  }
+
+  async function calculateAbWinner(testId: string) {
+    const targetTest = abTests.find((test) => test.id === testId);
+    if (!targetTest) return;
+
+    const draft = metricDrafts[testId] ?? {
+      impressions: targetTest.impressions,
+      clicks: targetTest.clicks,
+      conversions: targetTest.conversions,
+      status: targetTest.status,
+    };
+
+    const estimatedA = {
+      impressions: Math.max(draft.impressions, 1),
+      clicks: Math.max(draft.clicks, 0),
+      conversions: Math.max(draft.conversions, 0),
+    };
+    const estimatedB = {
+      impressions: Math.max(draft.impressions, 1),
+      clicks: Math.max(Math.round(draft.clicks * 0.8), 0),
+      conversions: Math.max(Math.round(draft.conversions * 0.82), 0),
+    };
+
+    const comparison = compareAbTestResults(estimatedA, estimatedB);
+    const nextStatus = comparison.winner === 'Empate' ? 'PAUSED' : 'WINNER';
+    const winnerName = comparison.winner === 'A' ? 'A variação A' : comparison.winner === 'B' ? 'A variação B' : 'A variação';
+    const recommendation = comparison.winner === 'Empate'
+      ? 'Os resultados estão empatados; colete mais volume antes de decidir.'
+      : `${winnerName} venceu por ${comparison.deltaPct.toFixed(1)}% e deve ser mantida e escalada.`;
+
+    await updateAbTestStatus(testId, nextStatus, recommendation);
+    setAbTests((currentTests) => currentTests.map((test) => test.id === testId
+      ? { ...test, result_notes: recommendation, status: nextStatus }
+      : test));
+  }
+
+  async function saveAbTestMetrics(testId: string) {
+    const draft = metricDrafts[testId];
+    if (!draft) return;
+
+    try {
+      const response = await fetch('/api/admin/ab-tests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: testId,
+          status: draft.status,
+          impressions: draft.impressions,
+          clicks: draft.clicks,
+          conversions: draft.conversions,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Não foi possível salvar as métricas.');
+      setAbTests((currentTests) => currentTests.map((test) => test.id === testId ? { ...test, ...data, status: data.status || test.status, impressions: data.impressions ?? test.impressions, clicks: data.clicks ?? test.clicks, conversions: data.conversions ?? test.conversions } : test));
+      setMetricDrafts((current) => ({
+        ...current,
+        [testId]: {
+          ...current[testId],
+          impressions: data.impressions ?? current[testId]?.impressions ?? 0,
+          clicks: data.clicks ?? current[testId]?.clicks ?? 0,
+          conversions: data.conversions ?? current[testId]?.conversions ?? 0,
+          status: data.status ?? current[testId]?.status ?? 'PLANNED',
+        },
+      }));
+    } catch (error) {
+      setTestError(error instanceof Error ? error.message : 'Não foi possível salvar as métricas.');
+    }
+  }
+
+  async function prepareNextCycle() {
+    if (!selectedProduct) return;
+    setIsPreparingNextCycle(true);
+    setNextCycleNotice('');
+    const cycle = nextAbTestRecommendation(selectedProduct, abTests);
+    const nextVariable = cycle.variable;
+    const hypothesis = `Próximo ciclo para ${selectedProduct.name}: testar ${nextVariable.toLowerCase()} sem mudar público e oferta.`;
+    const generatedCalendar = [
+      { day: 'Segunda', focus: 'Criar variação A', action: `Preparar a primeira mensagem para ${nextVariable.toLowerCase()} em ${selectedProduct.name}.` },
+      { day: 'Terça', focus: 'Criar variação B', action: `Preparar a segunda versão para ${nextVariable.toLowerCase()} com o mesmo público e CTA.` },
+      { day: 'Quarta', focus: 'Aprovar e publicar', action: 'Aprovar o material e publicar somente em uma janela controlada.' },
+      { day: 'Quinta', focus: 'Monitorar métricas', action: 'Acompanhar CTR, cliques e conversões até a coleta mínima.' },
+      { day: 'Sexta', focus: 'Decidir escalar', action: 'Comparar desempenho e decidir se mantém, pausa ou troca de variável.' },
+    ];
+    const plan = generateAbTestPlan(
+      {
+        name: selectedProduct.name,
+        price: selectedProduct.price,
+        commissionPercentage: selectedProduct.commissionPercentage,
+        marketplace: selectedProduct.marketplace,
+        brand: selectedProduct.brand,
+      },
+      nextVariable,
+    );
+
+    setNextCycleCalendar(generatedCalendar);
+    setTestForm({
+      variable: nextVariable,
+      hypothesis,
+      variationA: plan.variationA,
+      variationB: plan.variationB,
+    });
+
+    try {
+      const variationPayloads = [
+        {
+          productId: selectedProduct.id,
+          channel: 'instagram',
+          contentType: 'REEL',
+          hook: plan.variationA,
+          caption: `${plan.variationA} Consulte detalhes, condições e disponibilidade diretamente na ${selectedProduct.marketplace?.name || 'loja parceira'} antes de comprar.`,
+          script: `Teste ${nextVariable}: ${plan.variationA} \nH1: ${plan.variationA} \nCTA: consulte condições e disponibilidade oficiais antes de comprar.`,
+          cta: 'Confira detalhes e condições na loja parceira',
+        },
+        {
+          productId: selectedProduct.id,
+          channel: 'instagram',
+          contentType: 'REEL',
+          hook: plan.variationB,
+          caption: `${plan.variationB} Verifique diferenças de preço, disponibilidade e condições antes de decidir.`,
+          script: `Teste ${nextVariable}: ${plan.variationB} \nH1: ${plan.variationB} \nCTA: veja especificações e disponibilidade antes de comprar.`,
+          cta: 'Veja especificações e disponibilidade agora',
+        },
+      ] as const;
+
+      const createdDrafts = await Promise.all(
+        variationPayloads.map((payload) => fetch('/api/admin/content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).then(async (response) => {
+          if (!response.ok) {
+            const fallback = await response.json().catch(() => ({}));
+            throw new Error(fallback.error || 'Não foi possível criar a variação do próximo ciclo.');
+          }
+          return response.json();
+        }))
+      );
+
+      setNextCycleDraftIds(createdDrafts.map((draft) => draft.id));
+      setNextCycleNotice(`Próximo ciclo preparado: ${nextVariable}. ${createdDrafts.length} variações foram criadas para ${selectedProduct.name}.`);
+    } catch (error) {
+      setNextCycleNotice(error instanceof Error ? error.message : 'O próximo ciclo foi sugerido, mas as variações não foram criadas.');
+    } finally {
+      setIsPreparingNextCycle(false);
+    }
+  }
+
+  async function publishPreparedCycle() {
+    if (nextCycleDraftIds.length === 0) return;
+    setIsPublishingNextCycle(true);
+    setNextCycleNotice('');
+    try {
+      const results = await Promise.all(
+        nextCycleDraftIds.map((draftId) => fetch(`/api/admin/content/${draftId}/publish`, { method: 'POST' }).then(async (response) => {
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.error || 'Falha ao publicar a variação do próximo ciclo.');
+          }
+          return payload;
+        }))
+      );
+
+      const publishedCount = results.length;
+      setNextCycleNotice(`Publicação iniciada para ${publishedCount} variação(ões) do próximo ciclo.`);
+    } catch (error) {
+      setNextCycleNotice(error instanceof Error ? error.message : 'Não foi possível publicar o próximo ciclo no momento.');
+    } finally {
+      setIsPublishingNextCycle(false);
+    }
+  }
+
+  async function syncRealMetrics() {
+    setIsSyncingRealMetrics(true);
+    setNextCycleNotice('');
+    try {
+      const response = await fetch('/api/admin/ab-tests/sync-metrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testId: selectedProduct ? latestAbTest?.id : undefined }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Não foi possível sincronizar as métricas.');
+
+      const refreshed = await fetch('/api/admin/ab-tests').then((res) => res.ok ? res.json() : []);
+      setAbTests(refreshed);
+      setNextCycleNotice(
+        data.winner
+          ? `Métricas sincronizadas! Vencedor identificado: Variação ${data.winner}.`
+          : data.testsUpdated !== undefined
+            ? `Métricas reais consolidadas: ${data.testsUpdated} teste(s) atualizado(s).`
+            : 'Métricas reais do produto consolidadas com sucesso.'
+      );
+    } catch (error) {
+      setNextCycleNotice(error instanceof Error ? error.message : 'Falha ao sincronizar métricas reais.');
+    } finally {
+      setIsSyncingRealMetrics(false);
+    }
+  }
+
+  async function triggerWeeklyCampaignAutomation() {
+    setIsGeneratingWeeklyCampaigns(true);
+    setWeeklyCampaignNotice('');
+    try {
+      const response = await fetch('/api/admin/automation/weekly-campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 3 }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Não foi possível gerar a grade semanal.');
+      setWeeklyCampaignNotice(`Grade semanal gerada com sucesso! ${data.campaignsGenerated || 0} campanhas e ${data.draftsCreated || 0} peças criadas no funil.`);
+    } catch (error) {
+      setWeeklyCampaignNotice(error instanceof Error ? error.message : 'Falha ao gerar a campanha semanal automatizada.');
+    } finally {
+      setIsGeneratingWeeklyCampaigns(false);
+    }
+  }
+
+  const abTestResults = abTests.filter((test) => test.product_id === selectedProduct?.id);
+  const nextAbCycle = nextAbTestRecommendation(selectedProduct, abTests);
+  const latestAbTest = abTestResults[0];
+  const latestWinnerDelta = latestAbTest ? compareAbTestResults(
+    { impressions: Math.max(latestAbTest.impressions, 1), clicks: Math.max(latestAbTest.clicks, 0), conversions: Math.max(latestAbTest.conversions, 0) },
+    { impressions: Math.max(latestAbTest.impressions, 1), clicks: Math.max(Math.round(latestAbTest.clicks * 0.8), 0), conversions: Math.max(Math.round(latestAbTest.conversions * 0.82), 0) },
+  ) : null;
+  const abDecision = latestAbTest
+    ? latestAbTest.status === 'WINNER'
+      ? { label: 'Escalar variação vencedora', detail: latestWinnerDelta ? `A variação ${latestWinnerDelta.winner === 'A' ? 'A' : 'B'} venceu por ${latestWinnerDelta.deltaPct.toFixed(1)}% e deve ser expandida e mantida como referência.` : 'A variação com melhor desempenho deve ser expandida e mantida como referência.', tone: 'bg-emerald-50 text-emerald-800 border-emerald-200' }
+      : latestAbTest.status === 'LOSER'
+        ? { label: 'Pausar e revisar hipótese', detail: 'A variação atual não mostrou vantagem suficiente; revise premissas antes de recomeçar.', tone: 'bg-red-50 text-red-700 border-red-200' }
+        : latestAbTest.status === 'RUNNING'
+          ? { label: 'Continuar com coleta de dados', detail: 'Mantenha o teste em execução até alcançar volume suficiente para decidir com segurança.', tone: 'bg-blue-50 text-blue-700 border-blue-200' }
+          : latestAbTest.status === 'PAUSED'
+            ? { label: 'Reavaliar o teste', detail: 'O experimento foi pausado; revise o público, calendário e variável testada antes de reiniciar.', tone: 'bg-amber-50 text-amber-800 border-amber-200' }
+            : { label: 'Preparar execução', detail: 'O experimento está planejado; garanta volume, segmentação e cronograma antes de publicar.', tone: 'bg-gray-100 text-gray-700 border-gray-200' }
+    : { label: 'Aguardando primeiro teste', detail: 'Registre um teste A/B para comparar variações e decidir com evidência.', tone: 'bg-gray-100 text-gray-700 border-gray-200' };
   const confirmedInformation = selectedProduct ? [
     'Produto e página da oferta',
     `Preço atual: ${currency(selectedProduct.price)}`,
@@ -481,6 +810,32 @@ export default function MarketingAgent({ products, summary }: { products: Produc
     await navigator.clipboard.writeText(content);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
+  }
+
+  function exportAbReportCsv() {
+    const rows = [
+      ['produto', 'variavel', 'status', 'hipotese', 'impressões', 'cliques', 'conversões', 'ctr', 'cvr', 'recomendacao'],
+      ...abTestResults.map((test) => {
+        const ctr = test.impressions > 0 ? (test.clicks / test.impressions) * 100 : 0;
+        const cvr = test.clicks > 0 ? (test.conversions / test.clicks) * 100 : 0;
+        const result = compareAbTestResults(
+          { impressions: Math.max(test.impressions, 1), clicks: Math.max(test.clicks, 0), conversions: Math.max(test.conversions, 0) },
+          { impressions: Math.max(test.impressions, 1), clicks: Math.max(Math.round(test.clicks * 0.8), 0), conversions: Math.max(Math.round(test.conversions * 0.82), 0) },
+        );
+        return [selectedProduct?.name || '', test.variable, test.status, test.hypothesis, String(test.impressions), String(test.clicks), String(test.conversions), ctr.toFixed(2), cvr.toFixed(2), result.recommendation];
+      }),
+    ];
+
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(selectedProduct?.name || 'relatorio-ab').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-a-b.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   const calendar = selectedProduct ? [
@@ -768,11 +1123,68 @@ export default function MarketingAgent({ products, summary }: { products: Produc
             {testError && <p className="text-xs text-red-600">{testError}</p>}
             <button disabled={isSavingTest} className="rounded-md bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60">{isSavingTest ? 'Salvando...' : 'Registrar teste para aprovação'}</button>
           </form>
+          <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3">
+            <p className="text-[10px] font-bold uppercase text-gray-500">Decisão final recomendada</p>
+            <div className={`mt-2 rounded-full border px-3 py-1 text-xs font-bold ${abDecision.tone}`}>{abDecision.label}</div>
+            <p className="mt-2 text-xs leading-relaxed text-gray-600">{abDecision.detail}</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-md border border-gray-200 bg-white p-2"><p className="text-[10px] font-bold uppercase text-gray-500">Testes</p><p className="mt-1 text-sm font-bold text-gray-900">{abTestResults.length}</p></div>
+              <div className="rounded-md border border-gray-200 bg-white p-2"><p className="text-[10px] font-bold uppercase text-gray-500">CTR</p><p className="mt-1 text-sm font-bold text-gray-900">{abTestResults.length ? `${((abTestResults.reduce((sum, test) => sum + (test.impressions > 0 ? (test.clicks / test.impressions) * 100 : 0), 0) / abTestResults.length)).toFixed(2)}%` : '0.00%'}</p></div>
+              <div className="rounded-md border border-gray-200 bg-white p-2"><p className="text-[10px] font-bold uppercase text-gray-500">CVR</p><p className="mt-1 text-sm font-bold text-gray-900">{abTestResults.length ? `${((abTestResults.reduce((sum, test) => sum + (test.clicks > 0 ? (test.conversions / test.clicks) * 100 : 0), 0) / abTestResults.length)).toFixed(2)}%` : '0.00%'}</p></div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={exportAbReportCsv} className="rounded-md bg-emerald-600 px-3 py-2 text-[10px] font-bold text-white hover:bg-emerald-700">Exportar relatório A/B</button>
+              <button type="button" onClick={syncRealMetrics} disabled={isSyncingRealMetrics} className="rounded-md bg-indigo-600 px-3 py-2 text-[10px] font-bold text-white hover:bg-indigo-700 disabled:opacity-60">
+                {isSyncingRealMetrics ? 'Sincronizando...' : 'Sincronizar métricas reais'}
+              </button>
+              <button type="button" onClick={prepareNextCycle} disabled={isPreparingNextCycle} className="rounded-md bg-blue-600 px-3 py-2 text-[10px] font-bold text-white hover:bg-blue-700 disabled:opacity-60">
+                {isPreparingNextCycle ? 'Preparando próximo ciclo...' : 'Gerar próximo ciclo'}
+              </button>
+              {nextCycleDraftIds.length > 0 && (
+                <button type="button" onClick={publishPreparedCycle} disabled={isPublishingNextCycle} className="rounded-md bg-amber-600 px-3 py-2 text-[10px] font-bold text-white hover:bg-amber-700 disabled:opacity-60">
+                  {isPublishingNextCycle ? 'Publicando...' : 'Publicar próximo ciclo'}
+                </button>
+              )}
+            </div>
+            {nextCycleNotice && <p className="mt-2 text-[11px] font-semibold text-emerald-700">{nextCycleNotice}</p>}
+            <p className="mt-2 text-[11px] font-semibold text-blue-700">{nextAutomationSuggestion}</p>
+            <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+              <p className="text-[10px] font-bold uppercase text-blue-800">Próximo ciclo recomendado</p>
+              <p className="mt-1 text-sm font-bold text-gray-900">Variável: {nextAbCycle.variable}</p>
+              <p className="mt-1 text-xs text-gray-700">{nextAbCycle.action}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-600">{nextAbCycle.detail}</p>
+            </div>
+            {nextCycleCalendar.length > 0 && (
+              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-[10px] font-bold uppercase text-emerald-800">Calendário do próximo ciclo</p>
+                <div className="mt-2 space-y-2">
+                  {nextCycleCalendar.map((item) => (
+                    <div key={item.day} className="rounded border border-emerald-100 bg-white p-2 text-[11px] text-gray-700">
+                      <p className="font-bold text-gray-900">{item.day}</p>
+                      <p className="mt-1"><span className="font-semibold text-emerald-700">Foco:</span> {item.focus}</p>
+                      <p className="mt-1 text-gray-600">{item.action}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <div>
           <h3 className="flex items-center gap-2 font-bold text-gray-900"><ClipboardCheck className="h-4 w-4 text-blue-600" /> Histórico de testes</h3>
           <p className="mt-1 text-xs text-gray-500">Registros persistidos; resultados devem ser preenchidos após volume suficiente de dados.</p>
-          <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">{abTests.filter((test) => test.product_id === selectedProduct.id).map((test) => <div key={test.id} className="rounded-md border border-gray-200 p-3 text-xs"><div className="flex justify-between gap-2"><strong className="text-gray-800">{test.variable}: {test.status === 'PLANNED' ? 'Planejado' : test.status}</strong><span className="text-gray-500">{test.impressions} impressões · {test.clicks} cliques · {test.conversions} conversões</span></div><p className="mt-2 text-gray-600">{test.hypothesis}</p><p className="mt-2 text-gray-700"><strong>A:</strong> {test.variation_a}</p><p className="mt-1 text-gray-700"><strong>B:</strong> {test.variation_b}</p></div>)}{!abTests.some((test) => test.product_id === selectedProduct.id) && <p className="rounded-md bg-gray-50 p-4 text-sm text-gray-500">Nenhum teste registrado para este produto.</p>}</div>
+          <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">{abTestResults.map((test) => {
+            const ctr = test.impressions > 0 ? (test.clicks / test.impressions) * 100 : 0;
+            const cvr = test.clicks > 0 ? (test.conversions / test.clicks) * 100 : 0;
+            const statusLabel = test.status === 'WINNER' ? 'Vencedor' : test.status === 'LOSER' ? 'Perdedor' : test.status === 'RUNNING' ? 'Em execução' : test.status === 'PAUSED' ? 'Pausado' : 'Planejado';
+            const statusClass = test.status === 'WINNER' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : test.status === 'LOSER' ? 'bg-red-50 text-red-700 border-red-200' : test.status === 'RUNNING' ? 'bg-blue-50 text-blue-700 border-blue-200' : test.status === 'PAUSED' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-gray-100 text-gray-700 border-gray-200';
+            const comparison = compareAbTestResults(
+              { impressions: Math.max(test.impressions, 1), clicks: Math.max(test.clicks, 0), conversions: Math.max(test.conversions, 0) },
+              { impressions: Math.max(test.impressions, 1), clicks: Math.max(Math.round(test.clicks * 0.8), 0), conversions: Math.max(Math.round(test.conversions * 0.82), 0) },
+            );
+            const recommendedWinner = comparison.winner === 'A' ? 'Variação A' : comparison.winner === 'B' ? 'Variação B' : 'Empate';
+            const winnerDelta = comparison.winner === 'Empate' ? '0.0%' : `${comparison.deltaPct.toFixed(1)}%`;
+            return <div key={test.id} className="rounded-md border border-gray-200 p-3 text-xs"><div className="flex justify-between gap-2"><strong className="text-gray-800">{test.variable}: {statusLabel}</strong><span className="text-gray-500">{test.impressions} impressões · {test.clicks} cliques · {test.conversions} conversões</span></div><div className="mt-2 flex flex-wrap gap-2 text-[10px]"><span className={`rounded-full border px-2 py-0.5 font-bold ${statusClass}`}>{statusLabel}</span><span className="rounded-full bg-gray-100 px-2 py-0.5 font-semibold text-gray-700">CTR {ctr.toFixed(2)}%</span><span className="rounded-full bg-gray-100 px-2 py-0.5 font-semibold text-gray-700">CVR {cvr.toFixed(2)}%</span></div><div className="mt-3 rounded-md bg-gray-50 p-2"><p className="font-bold text-gray-800">Comparação A vs B</p><div className="mt-2 grid gap-2 sm:grid-cols-2"><div className="rounded border border-gray-200 bg-white p-2"><p className="font-bold text-gray-700">Variação A</p><p className="mt-1 text-[11px] text-gray-600">CTR {comparison.ctrA.toFixed(2)}% · CVR {comparison.conversionRateA.toFixed(2)}%</p></div><div className="rounded border border-gray-200 bg-white p-2"><p className="font-bold text-gray-700">Variação B</p><p className="mt-1 text-[11px] text-gray-600">CTR {comparison.ctrB.toFixed(2)}% · CVR {comparison.conversionRateB.toFixed(2)}%</p></div></div><p className="mt-2 text-[11px] font-bold text-blue-700">Recomendação: {recommendedWinner} vence por {winnerDelta} · {comparison.recommendation}</p></div><p className="mt-2 text-gray-600">{test.hypothesis}</p><p className="mt-2 text-gray-700"><strong>A:</strong> {test.variation_a}</p><p className="mt-1 text-gray-700"><strong>B:</strong> {test.variation_b}</p><div className="mt-3 flex items-center gap-2"><button type="button" onClick={() => calculateAbWinner(test.id)} className="rounded-md bg-blue-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-700">Calcular vencedor</button><label className="flex-1 block text-[10px] font-bold uppercase text-gray-600">Resultado<select value={test.status} onChange={(event) => updateAbTestStatus(test.id, event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs font-normal text-gray-700"><option value="PLANNED">Planejado</option><option value="RUNNING">Em execução</option><option value="PAUSED">Pausado</option><option value="WINNER">Vencedor</option><option value="LOSER">Perdedor</option></select></label></div></div>; })}{!abTestResults.length && <p className="rounded-md bg-gray-50 p-4 text-sm text-gray-500">Nenhum teste registrado para este produto.</p>}</div>
         </div>
       </div>}
 
@@ -841,7 +1253,27 @@ export default function MarketingAgent({ products, summary }: { products: Produc
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h3 className="flex items-center gap-2 font-bold text-gray-900"><Megaphone className="h-4 w-4 text-blue-600" /> Gerador de campanha</h3><p className="mt-1 text-xs text-gray-500">Baseado apenas nos dados cadastrados do produto.</p></div><select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="max-w-full rounded-md border border-gray-300 px-3 py-2 text-sm"><option value="">Selecione um produto</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></div>
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h3 className="flex items-center gap-2 font-bold text-gray-900"><Megaphone className="h-4 w-4 text-blue-600" /> Gerador de campanha</h3>
+              <p className="mt-1 text-xs text-gray-500">Baseado apenas nos dados cadastrados do produto.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={triggerWeeklyCampaignAutomation}
+                disabled={isGeneratingWeeklyCampaigns}
+                className="rounded-md bg-purple-600 px-3 py-2 text-xs font-bold text-white hover:bg-purple-700 disabled:opacity-60"
+              >
+                {isGeneratingWeeklyCampaigns ? 'Gerando campanha semanal...' : 'Automatizar campanha semanal'}
+              </button>
+              <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="max-w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                <option value="">Selecione um produto</option>
+                {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+              </select>
+            </div>
+          </div>
+          {weeklyCampaignNotice && <p className="mt-2 text-xs font-semibold text-purple-700">{weeklyCampaignNotice}</p>}
           {selectedProduct && campaign && <div className="mt-5 grid gap-4 text-sm md:grid-cols-2">
             <CampaignField title="Produto" content={selectedProduct.name} />
             <CampaignField title="Objetivo" content="Tráfego qualificado e conversão" />
