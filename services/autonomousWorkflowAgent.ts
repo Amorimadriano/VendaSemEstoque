@@ -165,16 +165,25 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
     console.warn('[AutonomousAgent] Geração de rascunhos gerou aviso:', err);
   }
 
-  // ETAPA 3: Aprovar e publicar no máximo um conteúdo no Instagram diariamente.
-  let publishStats = { attempted: 0, published: 0, failed: 0, errors: [] as string[] };
-  if (process.env.META_FACEBOOK_PAGE_ID) {
-    try {
-      publishStats = await publishDailyChannel('facebook');
-    } catch (err: any) {
-      console.warn('[AutonomousAgent] Publicação Facebook opcional ignorada:', err?.message || err);
-    }
+  // ETAPA 3: Tentar publicar diariamente em cada canal de forma independente.
+  let facebookPublish = { attempted: 0, published: 0, failed: 0, errors: [] as string[] };
+  try {
+    if (!process.env.META_FACEBOOK_PAGE_ID) throw new Error('META_FACEBOOK_PAGE_ID não configurado.');
+    facebookPublish = await publishDailyChannel('facebook');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    facebookPublish = { attempted: 1, published: 0, failed: 1, errors: [message] };
+    console.warn('[AutonomousAgent] Publicação Facebook falhou:', message);
   }
-  const instagramPublish = await publishDailyChannel('instagram');
+
+  let instagramPublish = { attempted: 0, published: 0, failed: 0, errors: [] as string[] };
+  try {
+    instagramPublish = await publishDailyChannel('instagram');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    instagramPublish = { attempted: 1, published: 0, failed: 1, errors: [message] };
+    console.warn('[AutonomousAgent] Publicação Instagram falhou:', message);
+  }
 
   const finishedAt = new Date().toISOString();
 
@@ -189,7 +198,7 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
     },
     abTestSync: abTestSyncResult,
     drafts: draftResult,
-    facebookPublish: publishStats,
+    facebookPublish,
     instagramPublish,
   };
 }
