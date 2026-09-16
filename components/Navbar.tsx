@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Search, Flame, Trophy, Percent, Tag, LayoutDashboard, ShoppingBag, Menu, X } from 'lucide-react';
+import { Search, Flame, Trophy, Percent, Tag, LayoutDashboard, ShoppingBag, Menu, X, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Navbar() {
@@ -67,6 +67,10 @@ export default function Navbar() {
               <Percent className="w-4 h-4 text-green-500" /> Ofertas
             </Link>
 
+            <Link href="/links" className="hover:text-blue-600 flex items-center gap-1 text-indigo-600 font-semibold">
+              <Sparkles className="w-4 h-4 text-indigo-500" /> Links da Bio
+            </Link>
+
             <Link
               href="/admin"
               className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-gray-300 transition-colors"
@@ -115,6 +119,9 @@ export default function Navbar() {
           </Link>
           <Link href="/ofertas" onClick={() => setIsMenuOpen(false)} className="block py-2 border-b border-gray-100">
             Ofertas Imbatíveis
+          </Link>
+          <Link href="/links" onClick={() => setIsMenuOpen(false)} className="block py-2 border-b border-gray-100 text-indigo-600 font-bold">
+            ✨ Links da Bio & Redes Sociais
           </Link>
           <Link
             href="/admin"

@@ -26,6 +26,7 @@ export default function Footer() {
               <li><Link href="/mais-vendidos" className="hover:text-white transition-colors">Produtos Mais Vendidos</Link></li>
               <li><Link href="/em-alta" className="hover:text-white transition-colors">Produtos em Alta</Link></li>
               <li><Link href="/ofertas" className="hover:text-white transition-colors">Maiores Descontos</Link></li>
+              <li><Link href="/links" className="hover:text-white transition-colors text-indigo-400 font-semibold">Links da Bio / Redes Sociais</Link></li>
             </ul>
           </div>
 

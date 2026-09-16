@@ -7,6 +7,7 @@ export default {
       'publish-facebook',
       'publish-instagram-stories',
       'publish-facebook-stories',
+      'health-check',
       'affiliate-conversions',
       'weekly-campaigns',
     ];
