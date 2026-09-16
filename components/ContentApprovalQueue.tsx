@@ -322,7 +322,7 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
               </button>
             )}
             {content.status === 'APPROVED' && (
-              <div className="mt-3 flex gap-3">
+              <div className="mt-3 flex items-center gap-3">
                 {content.channel === 'facebook' && (
                   <input
                     type="checkbox"
@@ -332,9 +332,11 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
                     title="Selecionar para publicação em lote no Facebook"
                   />
                 )}
-                <button onClick={() => generateVideo(content)} className="flex items-center gap-1 text-violet-700 hover:text-violet-800">
-                  <Send className="h-4 w-4" /> Gerar vídeo
-                </button>
+                {content.content_type === 'REEL' && (
+                  <button onClick={() => generateVideo(content)} className="flex items-center gap-1 text-violet-700 hover:text-violet-800">
+                    <Send className="h-4 w-4" /> Gerar vídeo
+                  </button>
+                )}
                 <button onClick={() => publishContent(content)} disabled={publishingContentId === content.id || (content.channel === 'instagram' && instagramLimit?.canPublish === false)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-40">
                     <Send className="h-4 w-4" /> {publishingContentId === content.id ? 'Publicando...' : content.channel === 'instagram' ? 'Publicar no Instagram' : 'Publicar no Facebook'}
                   </button>
