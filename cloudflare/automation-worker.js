@@ -5,6 +5,8 @@ export default {
       'autonomous-workflow',
       'publish-instagram',
       'publish-facebook',
+      'publish-instagram-stories',
+      'publish-facebook-stories',
       'affiliate-conversions',
       'weekly-campaigns',
     ];

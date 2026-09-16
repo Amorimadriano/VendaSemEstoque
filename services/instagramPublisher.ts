@@ -80,6 +80,10 @@ export async function publishApprovedInstagramContent(contentId: string) {
     ? { is_branded_content: 'true' }
     : {};
 
+  if (content.content_type === 'STORY') {
+    return publishApprovedInstagramStory(contentId);
+  }
+
   if (content.content_type === 'REEL') {
     const { data: video, error: videoError } = await supabase
       .from('marketing_videos')
@@ -193,6 +197,109 @@ export async function publishApprovedInstagramContent(contentId: string) {
   const publishResult = (await publishRes.json()) as { id?: string; error?: { message?: string } };
   if (!publishRes.ok || !publishResult.id) {
     const errorMsg = publishResult.error?.message || `Meta Graph API retornou ${publishRes.status} ao publicar mídia.`;
+    await supabase
+      .from('marketing_content')
+      .update({ publication_error: errorMsg, updated_at: new Date().toISOString() })
+      .eq('id', contentId);
+    throw new Error(errorMsg);
+  }
+
+  const { error: updateError } = await supabase
+    .from('marketing_content')
+    .update({
+      status: 'PUBLISHED',
+      external_post_id: publishResult.id,
+      published_at: new Date().toISOString(),
+      publication_error: null,
+      attempt_count: 0,
+      next_retry_at: null,
+      processing_started_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contentId);
+
+  if (updateError) throw updateError;
+  return { published: true, externalPostId: publishResult.id, remainingCapacity: Math.max(0, publishingLimit.remaining - 1) };
+}
+
+export async function publishApprovedInstagramStory(contentId: string) {
+  const token = process.env.META_ACCESS_TOKEN;
+  const instagramAccountId = process.env.META_INSTAGRAM_ACCOUNT_ID;
+  if (!token || !instagramAccountId) {
+    throw new Error('META_ACCESS_TOKEN e META_INSTAGRAM_ACCOUNT_ID devem estar configurados.');
+  }
+
+  const supabase = getSupabase();
+  const { data: content, error } = await supabase
+    .from('marketing_content')
+    .select('*, product:products(id,name,description,image_url,affiliate_url,price,status)')
+    .eq('id', contentId)
+    .eq('channel', 'instagram')
+    .eq('status', 'APPROVED')
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!content) throw new Error('Story aprovado do Instagram não encontrado.');
+
+  const product = content.product as { id?: string; name?: string; description?: string; image_url?: string; affiliate_url?: string; price?: number; status?: string } | null;
+  const imageUrl = product?.image_url;
+  if (!imageUrl || !imageUrl.startsWith('http')) {
+    throw new Error('O produto não possui uma imagem com URL pública válida para publicação no Story do Instagram.');
+  }
+
+  const publishingLimit = await ensureInstagramPublishingCapacity();
+
+  const brandedContentFields: Record<string, string> = process.env.META_INSTAGRAM_BRANDED_CONTENT === 'true'
+    ? { is_branded_content: 'true' }
+    : {};
+
+  // 1. Cria container de Story no Instagram
+  const createMediaBody = new URLSearchParams({
+    image_url: imageUrl,
+    media_type: 'STORIES',
+    ...brandedContentFields,
+    access_token: token,
+  });
+
+  const createMediaRes = await fetch(
+    `https://graph.facebook.com/v26.0/${instagramAccountId}/media`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: createMediaBody,
+    }
+  );
+
+  const createResult = (await createMediaRes.json()) as { id?: string; error?: { message?: string } };
+  if (!createMediaRes.ok || !createResult.id) {
+    const errorMsg = createResult.error?.message || `Meta Graph API retornou ${createMediaRes.status} ao criar container de Story.`;
+    await supabase
+      .from('marketing_content')
+      .update({ publication_error: errorMsg, updated_at: new Date().toISOString() })
+      .eq('id', contentId);
+    throw new Error(errorMsg);
+  }
+
+  const containerId = createResult.id;
+
+  // 2. Publica o container criado
+  const publishBody = new URLSearchParams({
+    creation_id: containerId,
+    access_token: token,
+  });
+
+  const publishRes = await fetch(
+    `https://graph.facebook.com/v26.0/${instagramAccountId}/media_publish`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: publishBody,
+    }
+  );
+
+  const publishResult = (await publishRes.json()) as { id?: string; error?: { message?: string } };
+  if (!publishRes.ok || !publishResult.id) {
+    const errorMsg = publishResult.error?.message || `Meta Graph API retornou ${publishRes.status} ao publicar Story.`;
     await supabase
       .from('marketing_content')
       .update({ publication_error: errorMsg, updated_at: new Date().toISOString() })

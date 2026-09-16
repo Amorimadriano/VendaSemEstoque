@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishApprovedFacebookContent, publishApprovedFacebookReelContent } from '@/services/facebookPublisher';
+import {
+  publishApprovedFacebookContent,
+  publishApprovedFacebookReelContent,
+  publishApprovedFacebookStory,
+} from '@/services/facebookPublisher';
 import { publishApprovedInstagramContent } from '@/services/instagramPublisher';
 import { getSupabase } from '@/lib/supabase';
 
@@ -14,7 +18,7 @@ export async function POST(
     const supabase = getSupabase();
     const { data: content, error } = await supabase
       .from('marketing_content')
-      .select('channel')
+      .select('channel, content_type')
       .eq('id', id)
       .maybeSingle();
 
@@ -25,9 +29,12 @@ export async function POST(
       return NextResponse.json(await publishApprovedInstagramContent(id));
     }
 
-    const { data: reel } = await supabase.from('marketing_content').select('content_type').eq('id', id).maybeSingle();
-    if (reel?.content_type === 'REEL') {
+    if (content.content_type === 'REEL') {
       return NextResponse.json(await publishApprovedFacebookReelContent(id));
+    }
+
+    if (content.content_type === 'STORY') {
+      return NextResponse.json(await publishApprovedFacebookStory(id));
     }
 
     return NextResponse.json(await publishApprovedFacebookContent(id));
