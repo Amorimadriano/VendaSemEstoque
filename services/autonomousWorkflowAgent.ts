@@ -3,7 +3,6 @@ import { runProductDiscovery } from '@/services/productDiscovery';
 import { generateContentDraftForProduct, generateContentDrafts } from '@/services/contentDraftGenerator';
 import { publishApprovedFacebookContent } from '@/services/facebookPublisher';
 import { publishApprovedInstagramContent } from '@/services/instagramPublisher';
-import { createFfmpegProductVideoAndUpload } from '@/services/ffmpegVideoGenerator';
 import { nextRetryAt } from '@/services/automationRun';
 import { syncAllActiveAbTestMetrics } from '@/services/abTestMetricSync';
 
@@ -91,15 +90,11 @@ async function publishDailyChannel(channel: 'facebook' | 'instagram') {
     }
 
     if (channel === 'instagram' && content.content_type === 'REEL') {
-      try {
-        await createFfmpegProductVideoAndUpload(content.id);
-      } catch (videoErr) {
-        console.warn(`[AutonomousAgent] Render FFmpeg falhou para ${content.id}, tentando fallback para POST com imagem:`, videoErr);
-        await supabase
-          .from('marketing_content')
-          .update({ content_type: 'POST', updated_at: new Date().toISOString() })
-          .eq('id', content.id);
-      }
+      // FFmpeg local não é suportado no runtime edge (Cloudflare Workers); usa sempre o fallback para POST com imagem.
+      await supabase
+        .from('marketing_content')
+        .update({ content_type: 'POST', updated_at: new Date().toISOString() })
+        .eq('id', content.id);
     }
 
     if (channel === 'facebook') await publishApprovedFacebookContent(content.id);
