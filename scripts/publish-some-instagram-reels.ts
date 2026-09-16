@@ -1,5 +1,5 @@
 import { getSupabase } from '../lib/supabase';
-import { createCreatomateVideo, refreshCreatomateVideo } from '../services/creatomateVideo';
+import { createFfmpegProductVideoAndUpload } from '../services/ffmpegVideoGenerator';
 import { publishApprovedInstagramContent } from '../services/instagramPublisher';
 
 async function wait(milliseconds: number) {
@@ -53,21 +53,9 @@ async function main() {
 
     try {
       console.log(`\n${index + 1}/${selected.length}: ${product.name}`);
-      const render = await createCreatomateVideo(contentId);
-      console.log(`Render: ${render.renderId}`);
-
-      let ready = false;
-      for (let attempt = 0; attempt < 12; attempt += 1) {
-        const status = await refreshCreatomateVideo(contentId);
-        console.log(`Status: ${status.status}`);
-        if (['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(status.status.toUpperCase()) && status.videoUrl) {
-          ready = true;
-          break;
-        }
-        if (status.status.toLowerCase() === 'failed') throw new Error('Render do Creatomate falhou.');
-        await wait(5000);
-      }
-      if (!ready) throw new Error('Render não ficou pronto no tempo esperado.');
+      console.log('-> Gerando vídeo com FFmpeg e enviando para o Supabase Storage...');
+      const video = await createFfmpegProductVideoAndUpload(contentId);
+      console.log(`-> Vídeo pronto: ${video.videoUrl}`);
 
       const result = await publishApprovedInstagramContent(contentId);
       console.log(`Publicado: ${result.externalPostId}`);

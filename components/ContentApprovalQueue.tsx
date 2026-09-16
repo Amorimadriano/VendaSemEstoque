@@ -161,10 +161,10 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
     const response = await fetch(`/api/admin/content/${content.id}/video`, { method: 'POST' });
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
-      setVideoError(result.error || 'Não foi possível iniciar a renderização do vídeo.');
+      setVideoError(result.error || 'Não foi possível verificar o vídeo.');
       return;
     }
-    alert('Vídeo enviado para renderização no Creatomate. Ele ficará disponível para revisão quando terminar.');
+    alert('Vídeos são gerados localmente via FFmpeg e enviados para o Supabase Storage.');
   }
 
   async function generateDrafts() {
