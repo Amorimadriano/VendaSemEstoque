@@ -39,8 +39,10 @@ export async function generateContentDrafts() {
 
   const candidates = ((products || []) as Product[]).filter((product) => scoreProduct(product) >= 45).sort((first, second) => scoreProduct(second) - scoreProduct(first)).slice(0, 3);
   let created = 0;
+  const channels: Array<'instagram' | 'facebook'> = ['instagram', ...(process.env.META_FACEBOOK_PAGE_ID ? ['facebook' as const] : [])];
+
   for (const product of candidates) {
-    for (const channel of ['instagram'] as const) {
+    for (const channel of channels) {
       const { data: existing } = await supabase.from('marketing_content').select('id').eq('product_id', product.id).eq('channel', channel).gte('created_at', `${today}T00:00:00.000Z`).limit(1);
       if (existing?.length) continue;
       const { error: insertError } = await supabase.from('marketing_content').insert({ id: crypto.randomUUID(), ...createDraft(product, channel), created_at: new Date().toISOString(), updated_at: new Date().toISOString() });

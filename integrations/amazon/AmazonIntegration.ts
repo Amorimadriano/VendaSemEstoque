@@ -257,10 +257,14 @@ export class AmazonIntegration implements MarketplaceIntegration {
     try {
       const response = await this.requestAmazon<{ SearchResult?: { Items?: AmazonSearchItem[] } }>('SearchItems', requestBody);
       const items = response.SearchResult?.Items || [];
-      return items.map((item) => this.convertAmazonItem(item)).filter((item): item is ExternalProduct => Boolean(item)).slice(0, Number(limit) || 10);
+      const products = items.map((item) => this.convertAmazonItem(item)).filter((item): item is ExternalProduct => Boolean(item)).slice(0, Number(limit) || 10);
+      if (products.length > 0) return products;
+      console.warn('[Amazon] PA-API não retornou itens válidos; usando catálogo curado como fallback.');
+      return this.getCuratedAmazonFallback(limit);
     } catch (error) {
-      console.warn('[Amazon] Erro ao buscar produtos:', error);
-      throw error;
+      // PA-API indisponível (ex.: conta sem elegibilidade de vendas, throttling) — não deixa a vitrine vazia.
+      console.warn('[Amazon] Erro ao buscar produtos via PA-API; usando catálogo curado como fallback:', error);
+      return this.getCuratedAmazonFallback(limit);
     }
   }
 

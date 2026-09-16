@@ -154,3 +154,55 @@ export async function publishApprovedFacebookReelContent(contentId: string) {
   if (updateError) throw updateError;
   return { published: true, externalPostId: finishResult.post_id || startResult.video_id };
 }
+
+export async function publishApprovedFacebookStory(contentId: string) {
+  const token = process.env.META_ACCESS_TOKEN;
+  const pageId = process.env.META_FACEBOOK_PAGE_ID;
+  if (!token || !pageId) throw new Error('META_ACCESS_TOKEN e META_FACEBOOK_PAGE_ID devem estar configurados como Secrets.');
+
+  const supabase = getSupabase();
+  const { data: content, error } = await supabase
+    .from('marketing_content')
+    .select('*, product:products(id,name,image_url)')
+    .eq('id', contentId)
+    .eq('channel', 'facebook')
+    .eq('content_type', 'STORY')
+    .eq('status', 'APPROVED')
+    .maybeSingle();
+  if (error) throw error;
+  if (!content) throw new Error('Story aprovado do Facebook não encontrado.');
+
+  const product = content.product as { id?: string; name?: string; image_url?: string } | null;
+  if (!product?.image_url?.startsWith('http')) throw new Error('O produto não possui uma imagem pública válida para o Story.');
+
+  const body = new URLSearchParams({
+    photo_url: product.image_url,
+    published: 'true',
+    access_token: token,
+  });
+  const response = await fetch(`https://graph.facebook.com/v26.0/${pageId}/photo_stories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const result = await response.json() as { id?: string; story_id?: string; error?: { message?: string } };
+  const externalPostId = result.story_id || result.id;
+  if (!response.ok || !externalPostId) {
+    const message = result.error?.message || `Meta API retornou ${response.status} ao publicar o Story.`;
+    await supabase.from('marketing_content').update({ publication_error: message, updated_at: new Date().toISOString() }).eq('id', contentId);
+    throw new Error(message);
+  }
+
+  const { error: updateError } = await supabase.from('marketing_content').update({
+    status: 'PUBLISHED',
+    external_post_id: externalPostId,
+    published_at: new Date().toISOString(),
+    publication_error: null,
+    attempt_count: 0,
+    next_retry_at: null,
+    processing_started_at: null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', contentId);
+  if (updateError) throw updateError;
+  return { published: true, externalPostId };
+}

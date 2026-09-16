@@ -235,32 +235,42 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
       searchUrl.searchParams.set('category', category.trim());
     }
 
+    let response: Response;
     try {
-      const response = await this.request(searchUrl.toString());
-      if (response.ok) {
-        const text = await response.text();
-        if (text.startsWith('{') || text.startsWith('[')) {
-          const data = JSON.parse(text) as MercadoLivreSearchResponse;
-          if (Array.isArray(data.results) && data.results.length > 0) {
-            const products: ExternalProduct[] = [];
-            for (const item of data.results) {
-              const product = this.convertProduct(item, query || category || 'Mercado Livre');
-              if (product) {
-                products.push(product);
-                if (products.length >= safeLimit) break;
-              }
-            }
-            return products;
-          }
-        }
-      } else {
-        console.warn(`[Mercado Livre] Busca retornou HTTP ${response.status}`);
-      }
+      response = await this.request(searchUrl.toString());
     } catch (error) {
-      console.warn('[Mercado Livre] Erro ao buscar produtos:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[Mercado Livre] Erro de rede ao buscar produtos:', error);
+      throw new Error(`Falha de rede na busca do Mercado Livre: ${message}`);
     }
 
-    return [];
+    if (!response.ok) {
+      const bodySnippet = (await response.text().catch(() => '')).slice(0, 300);
+      console.warn(`[Mercado Livre] Busca retornou HTTP ${response.status}: ${bodySnippet}`);
+      throw new Error(`Mercado Livre respondeu HTTP ${response.status}${bodySnippet ? `: ${bodySnippet}` : ''}`);
+    }
+
+    const text = await response.text();
+    if (!text.startsWith('{') && !text.startsWith('[')) {
+      console.warn('[Mercado Livre] Resposta não-JSON recebida da busca:', text.slice(0, 300));
+      throw new Error('Mercado Livre retornou resposta não-JSON (possível bloqueio/HTML de erro)');
+    }
+
+    const data = JSON.parse(text) as MercadoLivreSearchResponse;
+    if (!Array.isArray(data.results) || data.results.length === 0) {
+      // Resposta válida sem resultados para o termo — não é erro, apenas ausência de itens.
+      return [];
+    }
+
+    const products: ExternalProduct[] = [];
+    for (const item of data.results) {
+      const product = this.convertProduct(item, query || category || 'Mercado Livre');
+      if (product) {
+        products.push(product);
+        if (products.length >= safeLimit) break;
+      }
+    }
+    return products;
   }
 
   async getItemsBulk(ids: string[]): Promise<Map<string, ExternalProduct>> {

@@ -3,7 +3,7 @@ import { runProductDiscovery } from '@/services/productDiscovery';
 import { generateContentDraftForProduct, generateContentDrafts } from '@/services/contentDraftGenerator';
 import { publishApprovedFacebookContent } from '@/services/facebookPublisher';
 import { publishApprovedInstagramContent } from '@/services/instagramPublisher';
-import { createCreatomateVideo, refreshCreatomateVideo } from '@/services/creatomateVideo';
+import { createFfmpegProductVideoAndUpload } from '@/services/ffmpegVideoGenerator';
 import { nextRetryAt } from '@/services/automationRun';
 import { syncAllActiveAbTestMetrics } from '@/services/abTestMetricSync';
 
@@ -92,20 +92,9 @@ async function publishDailyChannel(channel: 'facebook' | 'instagram') {
 
     if (channel === 'instagram' && content.content_type === 'REEL') {
       try {
-        await createCreatomateVideo(content.id);
-        let ready = false;
-        for (let attempt = 0; attempt < 12; attempt += 1) {
-          const render = await refreshCreatomateVideo(content.id);
-          if (render.status.toUpperCase() === 'SUCCEEDED' && render.videoUrl) {
-            ready = true;
-            break;
-          }
-          if (render.status.toLowerCase() === 'failed') throw new Error('Render do Reel falhou.');
-          await wait(5000);
-        }
-        if (!ready) throw new Error('Render do Reel não ficou pronto no tempo esperado.');
+        await createFfmpegProductVideoAndUpload(content.id);
       } catch (videoErr) {
-        console.warn(`[AutonomousAgent] Render de vídeo falhou para ${content.id}, tentando fallback para POST com imagem:`, videoErr);
+        console.warn(`[AutonomousAgent] Render FFmpeg falhou para ${content.id}, tentando fallback para POST com imagem:`, videoErr);
         await supabase
           .from('marketing_content')
           .update({ content_type: 'POST', updated_at: new Date().toISOString() })

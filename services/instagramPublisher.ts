@@ -76,6 +76,9 @@ export async function publishApprovedInstagramContent(contentId: string) {
   const publishingLimit = await ensureInstagramPublishingCapacity();
   const caption = `${content.hook}\n\n${content.caption}\n\n${content.cta}\n🔗 Acesse o link na bio para ver a oferta e consultar a disponibilidade atualizada.`;
   const imageUrl = product?.image_url;
+  const brandedContentFields: Record<string, string> = process.env.META_INSTAGRAM_BRANDED_CONTENT === 'true'
+    ? { is_branded_content: 'true' }
+    : {};
 
   if (content.content_type === 'REEL') {
     const { data: video, error: videoError } = await supabase
@@ -95,6 +98,7 @@ export async function publishApprovedInstagramContent(contentId: string) {
       video_url: video.video_url,
       caption,
       share_to_feed: 'true',
+      ...brandedContentFields,
       access_token: token,
     });
     const createReelResponse = await fetch(`https://graph.facebook.com/v26.0/${instagramAccountId}/media`, {
@@ -146,6 +150,7 @@ export async function publishApprovedInstagramContent(contentId: string) {
   const createMediaBody = new URLSearchParams({
     image_url: imageUrl,
     caption,
+    ...brandedContentFields,
     access_token: token,
   });
 

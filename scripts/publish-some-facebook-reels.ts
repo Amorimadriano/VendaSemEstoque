@@ -1,5 +1,5 @@
 import { getSupabase } from '../lib/supabase';
-import { createCreatomateVideo, refreshCreatomateVideo } from '../services/creatomateVideo';
+import { createFfmpegProductVideoAndUpload } from '../services/ffmpegVideoGenerator';
 import { publishApprovedFacebookReelContent } from '../services/facebookPublisher';
 
 async function wait(milliseconds: number) {
@@ -161,26 +161,13 @@ async function main() {
       });
 
       try {
-        const render = await createCreatomateVideo(contentId);
-        let ready = false;
-        for (let attempt = 0; attempt < 12; attempt += 1) {
-          await wait(5000);
-          const status = await refreshCreatomateVideo(contentId);
-          if (['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(String(status.status).toUpperCase()) && status.videoUrl) {
-            ready = true;
-            break;
-          }
-          if (String(status.status).toLowerCase() === 'failed') break;
-        }
-
-        if (ready) {
-          const result = await publishApprovedFacebookReelContent(contentId);
-          console.log(`-> Sucesso! Reel publicado com Post ID: ${result.externalPostId}`);
-          publishedProductIds.add(product.id);
-          successCount += 1;
-        }
+        await createFfmpegProductVideoAndUpload(contentId);
+        const result = await publishApprovedFacebookReelContent(contentId);
+        console.log(`-> Sucesso! Reel publicado com Post ID: ${result.externalPostId}`);
+        publishedProductIds.add(product.id);
+        successCount += 1;
       } catch (err) {
-        console.error('-> Erro ao gerar vídeo:', err instanceof Error ? err.message : String(err));
+        console.error('-> Erro ao gerar/publicar vídeo com FFmpeg:', err instanceof Error ? err.message : String(err));
       }
 
       if (successCount < 3) await wait(10000);
