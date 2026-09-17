@@ -55,6 +55,16 @@ type ValidationResult = {
   reason?: string;
 };
 
+const BLOCKED_TITLE_KEYWORDS = [
+  'pedal', 'acelerador', 'interruptor freio', 'amortecedor', 'parachoque', 'retrovisor',
+  'pastilha', 'embreagem', 'vela de ignicao', 'bomba de combustivel', 'carburador', 'radiador',
+  'sensor de acelerador', 'reator eletronico', 'usina eletronica', 'resina epoxi', 'cola b-7000',
+  'super cola', 'contas fusiveis', 'modulo de radio', 'cassette', 'fita cassete', 'album cassete',
+  'vocaloid', 'celular usado', 'com defeito', 'para pecas', 'para retirada', 'sucata',
+  'balao pic pic', 'bexiga latex', 'taças caneladas', 'tacas caneladas', 'meias tomorrowland',
+  'umidificador de charutos', 'alicates corte diagonal', 'placa smd',
+];
+
 export function validateCandidateProduct(product: ExternalProduct, marketplaceSlug: string): ValidationResult {
   if (!product) return { isValid: false, reason: 'Produto nulo ou indefinido' };
 
@@ -63,9 +73,16 @@ export function validateCandidateProduct(product: ExternalProduct, marketplaceSl
     return { isValid: false, reason: 'ID de produto original inválido ou ausente' };
   }
 
-  // 2. Validação de Título/Nome
+  // 2. Validação de Título/Nome e Bloqueio de Palavras-Chave Irrelevantes
   if (!product.name || typeof product.name !== 'string' || product.name.trim().length < 5) {
     return { isValid: false, reason: 'Título do produto inválido (mínimo 5 caracteres)' };
+  }
+
+  const normalizedTitle = product.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const blocked of BLOCKED_TITLE_KEYWORDS) {
+    if (normalizedTitle.includes(blocked)) {
+      return { isValid: false, reason: `Título contém termo bloqueado: "${blocked}"` };
+    }
   }
 
   // 3. Validação de Preço
