@@ -8,8 +8,8 @@ const MIN_REVIEWS = Number(process.env.PRODUCT_MIN_REVIEWS || 20);
 const DEFAULT_COMMISSION = Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10);
 const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 20);
 const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 15000);
-// Amazon é disponível mas desativado por padrão due to TLS cert issues em dev. Ativar em produção via MARKETPLACES_TO_SYNC=mercadolivre,aliexpress,shopee,amazon
-const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress,shopee').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
+// Sincronização automática para todos os 4 marketplaces suportados
+const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress,shopee,amazon').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
 
 function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
