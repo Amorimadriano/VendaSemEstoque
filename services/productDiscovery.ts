@@ -255,6 +255,7 @@ async function persistSyncLog(log: MarketplaceSyncLog) {
     published: log.published,
     status: log.status,
     error_message: log.errorMessage?.slice(0, 500) || null,
+    created_at: new Date().toISOString(),
   });
   if (error) console.warn(`Could not persist sync log for ${log.marketplaceSlug}:`, error.message);
 }

@@ -1,6 +1,7 @@
 import { getProductBySlug } from '@/services/productService';
 import ProductCard from '@/components/ProductCard';
 import PriceAlertModal from '@/components/PriceAlertModal';
+import { formatDate } from '@/lib/dateUtils';
 import { notFound } from 'next/navigation';
 import { Star, ShieldCheck, ExternalLink, Info, CheckCircle2, TrendingUp, Sparkles, ShoppingBag, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
@@ -290,7 +291,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                   }`}
                 >
                   <div className="text-[10px] text-gray-500 font-medium">
-                    {new Date(ph.recordedAt).toLocaleDateString('pt-BR')}
+                    {formatDate(ph.recordedAt)}
                   </div>
                   <div className="text-sm font-extrabold text-gray-900 mt-0.5">
                     R$ {ph.price.toFixed(2)}

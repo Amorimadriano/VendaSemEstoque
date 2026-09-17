@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, RefreshCw, XCircle } from 'lucide-react';
+import { formatDateTime } from '@/lib/dateUtils';
 
 type SyncLog = {
   id: string;
@@ -96,7 +97,7 @@ export default function MarketplaceSyncStatus() {
               </div>
               <p className="mt-2 text-gray-700">Termos pesquisados: {log.searched_terms} · Encontrados: {log.found} · Filtrados: {log.filtered_out} · Publicados: {log.published}</p>
               {log.error_message && <p className="mt-2 font-semibold">{log.error_message}</p>}
-              <p className="mt-2 text-[11px] text-gray-500">Última execução: {new Date(log.created_at).toLocaleString('pt-BR')}</p>
+              <p className="mt-2 text-[11px] text-gray-500">Última execução: {formatDateTime(log.created_at)}</p>
             </div>
           );
         })}

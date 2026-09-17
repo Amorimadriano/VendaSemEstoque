@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { formatDateTime } from '@/lib/dateUtils';
 
 type Operations = {
   runs: Array<{ id: string; workflow: string; status: string; created_at: string; duration_ms?: number; error?: string }>;
@@ -28,7 +29,7 @@ export default function OperationsHealth() {
       <div className="mt-4 grid gap-5 lg:grid-cols-3">
         <div><h3 className="text-xs font-bold uppercase text-gray-500">Integrações</h3><div className="mt-2 space-y-2">{data.integrations.map((item) => <div key={item.marketplace_slug} className="flex items-center justify-between border-b border-gray-100 py-2 text-xs"><span className="capitalize">{item.marketplace_slug}</span><span className={`flex items-center gap-1 font-bold ${item.status === 'SUCCESS' ? 'text-emerald-700' : 'text-red-700'}`}><CheckCircle2 className="h-3.5 w-3.5" />{item.status}</span></div>)}</div></div>
         <div><h3 className="text-xs font-bold uppercase text-gray-500">Funil dos últimos 7 dias</h3><div className="mt-2 space-y-2">{data.funnel.map((item) => <div key={item.channel} className="border-b border-gray-100 py-2 text-xs"><strong className="capitalize">{item.channel}</strong><p className="mt-1 text-gray-500">{item.clicks} cliques · {item.conversions} vendas · R$ {item.commission.toFixed(2)} comissão</p></div>)}{!data.funnel.length && <p className="text-xs text-gray-500">Sem dados no período.</p>}</div></div>
-        <div><h3 className="text-xs font-bold uppercase text-gray-500">Últimas automações</h3><div className="mt-2 space-y-2">{data.runs.slice(0, 6).map((run) => <div key={run.id} className="border-b border-gray-100 py-2 text-xs"><div className="flex justify-between gap-2"><strong>{run.workflow}</strong><span className={run.status === 'SUCCESS' ? 'text-emerald-700' : run.status === 'FAILED' ? 'text-red-700' : 'text-blue-700'}>{run.status}</span></div><p className="mt-1 text-gray-400">{new Date(run.created_at).toLocaleString('pt-BR')}{run.duration_ms ? ` · ${run.duration_ms} ms` : ''}</p></div>)}</div></div>
+        <div><h3 className="text-xs font-bold uppercase text-gray-500">Últimas automações</h3><div className="mt-2 space-y-2">{data.runs.slice(0, 6).map((run) => <div key={run.id} className="border-b border-gray-100 py-2 text-xs"><div className="flex justify-between gap-2"><strong>{run.workflow}</strong><span className={run.status === 'SUCCESS' ? 'text-emerald-700' : run.status === 'FAILED' ? 'text-red-700' : 'text-blue-700'}>{run.status}</span></div><p className="mt-1 text-gray-400">{formatDateTime(run.created_at)}{run.duration_ms ? ` · ${run.duration_ms} ms` : ''}</p></div>)}</div></div>
       </div>
     </section>
   );
