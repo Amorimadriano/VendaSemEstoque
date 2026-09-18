@@ -3,6 +3,7 @@ export default {
     const endpoints = [
       'amazon-discover',
       'autonomous-workflow',
+      'verify-partner-products',
       'publish-instagram',
       'publish-facebook',
       'publish-instagram-stories',

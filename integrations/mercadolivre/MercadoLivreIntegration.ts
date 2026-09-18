@@ -437,6 +437,13 @@ export class MercadoLivreIntegration implements MarketplaceIntegration {
     const id = String(externalId || '').trim();
     if (!id) return { status: 'NOT_FOUND', reason: 'ID ausente' };
 
+    // 1. Verifica se é item do catálogo curado oficial
+    const curated = this.getCuratedMercadoLivreFallback(20);
+    const foundCurated = curated.find((p) => p.externalProductId === id);
+    if (foundCurated) {
+      return { status: 'VERIFIED', product: foundCurated };
+    }
+
     const url = `https://api.mercadolibre.com/items/${encodeURIComponent(id)}`;
     try {
       const response = await this.request(url);

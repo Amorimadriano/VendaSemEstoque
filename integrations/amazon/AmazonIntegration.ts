@@ -488,11 +488,22 @@ export class AmazonIntegration implements MarketplaceIntegration {
   }
 
   async verifyProduct(externalId: string): Promise<ProductVerificationResult> {
-    const item = await this.getProduct(externalId);
-    if (!item) {
-      return { status: 'NOT_FOUND', reason: 'Produto Amazon não encontrado ou indisponível' };
+    const safeId = String(externalId || '').trim();
+    if (!safeId) return { status: 'NOT_FOUND', reason: 'ID ausente' };
+
+    const item = await this.getProduct(safeId);
+    if (item) {
+      return { status: 'VERIFIED', product: item };
     }
-    return { status: 'VERIFIED', product: item };
+
+    // Verifica se é item do catálogo curado oficial
+    const curated = this.getCuratedAmazonFallback(20);
+    const foundCurated = curated.find((p) => p.externalProductId === safeId);
+    if (foundCurated) {
+      return { status: 'VERIFIED', product: foundCurated };
+    }
+
+    return { status: 'NOT_FOUND', reason: 'Produto Amazon não encontrado ou indisponível' };
   }
 
   async getCategories(): Promise<{ id: string; name: string; slug: string }[]> {

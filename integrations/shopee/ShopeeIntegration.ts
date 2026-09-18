@@ -256,14 +256,25 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     const id = String(externalId || '').trim();
     if (!id) return { status: 'NOT_FOUND', reason: 'ID ausente' };
 
+    // 1. Verifica se é item do catálogo curado oficial
+    const curated = this.getCuratedShopeeFallback(20);
+    const foundCurated = curated.find((p) => p.externalProductId === id);
+    if (foundCurated) {
+      return { status: 'VERIFIED', product: foundCurated };
+    }
+
     if (!this.hasCredentials()) {
       return { status: 'ERROR', reason: 'Credenciais da Shopee não configuradas' };
     }
 
-    const products = await this.getProducts(id, undefined, 5);
-    const item = products.find((p) => p.externalProductId === id);
-    if (item) {
-      return { status: 'VERIFIED', product: item };
+    try {
+      const products = await this.getProducts(id, undefined, 5);
+      const item = products.find((p) => p.externalProductId === id);
+      if (item) {
+        return { status: 'VERIFIED', product: item };
+      }
+    } catch (err: any) {
+      return { status: 'ERROR', reason: `Falha na API da Shopee: ${err?.message || err}` };
     }
 
     return { status: 'NOT_FOUND', reason: 'Produto Shopee não encontrado ou inativo' };
