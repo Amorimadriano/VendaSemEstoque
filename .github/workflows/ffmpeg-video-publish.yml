@@ -1,0 +1,37 @@
+name: Generate and Publish Reels with FFmpeg
+
+on:
+  schedule:
+    - cron: '30 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  ffmpeg-reels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate and publish reels with FFmpeg
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://vgduzuvnhyebymhywmse.supabase.co' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.SUPABASE_POOLER_DATABASE_URL || secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.SUPABASE_DIRECT_DATABASE_URL || secrets.DIRECT_URL }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_FACEBOOK_PAGE_ID: ${{ secrets.META_FACEBOOK_PAGE_ID }}
+          META_INSTAGRAM_ACCOUNT_ID: ${{ secrets.META_INSTAGRAM_ACCOUNT_ID }}
+          META_INSTAGRAM_BRANDED_CONTENT: ${{ vars.META_INSTAGRAM_BRANDED_CONTENT || 'false' }}
+          FFMPEG_MAX_PUBLICATIONS: ${{ vars.FFMPEG_MAX_PUBLICATIONS || '2' }}
+          FFMPEG_POST_DELAY_MS: ${{ vars.FFMPEG_POST_DELAY_MS || '15000' }}
+        run: npx tsx scripts/generate-and-publish-ffmpeg.ts
