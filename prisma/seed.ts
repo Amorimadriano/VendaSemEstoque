@@ -34,18 +34,6 @@ async function main() {
     },
   });
 
-  const mercadolivre = await prisma.marketplace.upsert({
-    where: { slug: 'mercadolivre' },
-    update: {},
-    create: {
-      name: 'Mercado Livre',
-      slug: 'mercadolivre',
-      logoUrl: 'https://http2.mlstatic.com/frontend-assets/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png',
-      apiStatus: 'ACTIVE',
-      affiliateStatus: 'ACTIVE',
-    },
-  });
-
   const shopee = await prisma.marketplace.upsert({
     where: { slug: 'shopee' },
     update: {},
@@ -76,7 +64,6 @@ async function main() {
   await prisma.affiliateProgram.createMany({
     data: [
       { marketplaceId: amazon.id, name: 'Associados Amazon', commissionRate: 8.5, cookieDuration: 24 },
-      { marketplaceId: mercadolivre.id, name: 'Afiliados Mercado Livre', commissionRate: 10.0, cookieDuration: 7 },
       { marketplaceId: shopee.id, name: 'Programa de Afiliados Shopee', commissionRate: 12.0, cookieDuration: 30 },
       { marketplaceId: aliexpress.id, name: 'AliExpress Portals', commissionRate: 9.0, cookieDuration: 30 },
     ],
@@ -147,7 +134,7 @@ async function main() {
       slug: 'fone-sony-wh-1000xm5-bluetooth-cancelamento-ruido',
       description: 'Cancelamento de ruído ativável líder de mercado, chamadas ultra cristalinas e bateria de longa duração até 30 horas.',
       categoryId: catAudio.id,
-      marketplaceId: mercadolivre.id,
+      marketplaceId: shopee.id,
       brand: 'Sony',
       imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80',
       images: JSON.stringify(['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80']),
@@ -160,9 +147,9 @@ async function main() {
       trendScore: 92.5,
       commissionPercentage: 10.0,
       commissionValue: 189.99,
-      externalProductId: 'MLB-SONY-XM5',
-      originalUrl: 'https://mercadolivre.com.br/p/MLB-SONY-XM5',
-      affiliateUrl: 'https://mercadolivre.com.br/p/MLB-SONY-XM5?matt_tool=12345678',
+      externalProductId: 'SHP-SONY-XM5',
+      originalUrl: 'https://shopee.com.br/sony-wh-1000xm5',
+      affiliateUrl: 'https://shopee.com.br/sony-wh-1000xm5',
       isBestSeller: true,
       isTrending: false,
       status: ProductStatus.ACTIVE,

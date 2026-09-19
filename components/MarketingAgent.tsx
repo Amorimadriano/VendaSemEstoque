@@ -223,7 +223,6 @@ function distributionPlan(product: Product) {
     ['Instagram', 'Reels e Stories', `Use os roteiros e variações de ${product.name}; adapte para formato vertical e CTA para a página oficial.`],
     ['Facebook', 'Reels, posts e grupos quando apropriado', 'Publique conteúdo útil e relevante para cada contexto; não faça mensagens repetitivas ou divulgação não autorizada em grupos.'],
     ['Shopee', 'Conteúdo e recursos permitidos', 'Use apenas recursos oficiais da plataforma e dados verificados da oferta.'],
-    ['Mercado Livre', 'Recursos permitidos pela plataforma', 'Priorize apresentação clara, descrição estruturada e respostas verificáveis.'],
     ['Hotmart', 'Conteúdo de afiliado autorizado', 'Use materiais permitidos pelo produtor e siga as regras da oferta e da Hotmart.'],
     ['Site próprio', 'Página do produto, conteúdo e CTA', 'Direcione para a página da oferta com dados, condições e CTA claros.'],
   ] as const;
@@ -352,23 +351,6 @@ function shopeePlan(product: Product) {
   };
 }
 
-function mercadoLivrePlan(product: Product) {
-  const isMercadoLivre = product.marketplace?.name?.toLowerCase().includes('mercado livre');
-  const keywords = [product.brand, ...product.name.split(/\s+/).filter((word) => word.length > 3)].filter(Boolean).slice(0, 8).join(', ');
-  return {
-    isMercadoLivre,
-    title: `${product.brand ? `${product.brand} ` : ''}${product.name}`.slice(0, 120),
-    description: product.description ? `O que é: ${product.description}\n\nAntes de comprar: confirme especificações, compatibilidade, disponibilidade, frete e condições na página oficial.` : 'Descrição não cadastrada. Estruture o que é o produto, seus detalhes verificáveis e as condições que devem ser conferidas na oferta.',
-    differentials: product.key_benefits || 'Diferenciais não cadastrados. Use somente características verificadas na página do produto.',
-    keywords: keywords || 'Palavras-chave dependem de título e descrição cadastrados.',
-    objections: product.key_objections || 'Antecipe dúvidas sobre preço, frete, garantia, disponibilidade e compatibilidade; confirme cada resposta na oferta oficial.',
-    questions: `P: O que devo verificar antes de comprar ${product.name}?\nR: Especificações, compatibilidade, preço, frete, prazo, garantia e disponibilidade na página oficial.\n\nP: O preço está atualizado?\nR: O valor exibido pode variar; confirme as condições atuais no Mercado Livre antes de finalizar.`,
-    presentation: 'Use imagens autorizadas e nítidas, título direto, descrição organizada e condições transparentes. Evite alegações, avaliações ou resultados sem confirmação.',
-    social: `Crie um vídeo curto mostrando como avaliar ${product.name}: mostre detalhes verificáveis, responda uma dúvida comum e direcione para a oferta oficial.`,
-    metrics: `Cliques registrados: ${product.salesCount || 0} vendas registradas no catálogo. CTR, visualizações, perguntas, conversão e receita por anúncio dependem da integração oficial do Mercado Livre.`,
-  };
-}
-
 function aliExpressPlan(product: Product) {
   const isAliExpress = product.marketplace?.name?.toLowerCase().includes('aliexpress');
   const checks = [
@@ -458,7 +440,6 @@ export default function MarketingAgent({ products, summary }: { products: Produc
   const hotmart = selectedProduct ? hotmartPlan(selectedProduct) : null;
   const copy = selectedProduct && persona ? ethicalCopy(selectedProduct, persona) : [];
   const shopee = selectedProduct ? shopeePlan(selectedProduct) : null;
-  const mercadoLivre = selectedProduct ? mercadoLivrePlan(selectedProduct) : null;
   const aliExpress = selectedProduct ? aliExpressPlan(selectedProduct) : null;
   const angles = selectedProduct && persona ? contentAngles(selectedProduct, persona) : [];
   const videos = selectedProduct ? videoKit(selectedProduct) : null;
@@ -858,7 +839,7 @@ export default function MarketingAgent({ products, summary }: { products: Produc
       </div>
 
       <div className="grid gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-xs text-gray-700 md:grid-cols-3">
-        <div><strong className="block text-blue-900">Canais priorizados</strong><span className="mt-1 block">Shopee, Mercado Livre, AliExpress, Hotmart, Facebook, Instagram e site próprio.</span></div>
+        <div><strong className="block text-blue-900">Canais priorizados</strong><span className="mt-1 block">Amazon, Shopee, AliExpress, Hotmart, Facebook, Instagram e site próprio.</span></div>
         <div><strong className="block text-blue-900">Ação proativa</strong><span className="mt-1 block">Planeja, cria, analisa e sugere otimizações a partir dos dados disponíveis.</span></div>
         <div><strong className="block text-blue-900">Conformidade</strong><span className="mt-1 block">Não publica, investe ou usa práticas que violem políticas, leis ou regras das plataformas.</span></div>
       </div>
@@ -873,7 +854,7 @@ export default function MarketingAgent({ products, summary }: { products: Produc
         <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-blue-600" /><h3 className="font-bold text-gray-900">Operação com 5 agentes especializados</h3></div>
         <p className="mt-1 text-xs text-gray-500">Agentes com responsabilidades definidas, coordenados pelo Orquestrador para transformar dados em uma rotina operacional de e-commerce.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5">{[
-          ['Caçador de Produtos', 'Pesquisa oportunidades em Shopee, Mercado Livre, AliExpress e Hotmart.', 'Pesquisa, nota e classificação de potencial.'],
+          ['Caçador de Produtos', 'Pesquisa oportunidades em Amazon, Shopee e AliExpress.', 'Pesquisa, nota e classificação de potencial.'],
           ['Estrategista', 'Seleciona produtos para teste e define público, posicionamento, preço e canal.', 'Priorização, persona, oferta e distribuição.'],
           ['Conteúdo', 'Cria Reels, posts, Stories, anúncios, títulos, descrições, roteiros e copies.', 'Peças por funil, canal e ângulo.'],
           ['Analista', 'Interpreta vendas e métricas para manter, pausar ou escalar testes.', 'Relatórios, testes A/B e aprendizados.'],
@@ -997,22 +978,6 @@ export default function MarketingAgent({ products, summary }: { products: Produc
           <CampaignField title="Preço e promoção" content={shopee.price} />
           <CampaignField title="Concorrência" content={shopee.competition} />
           <CampaignField title="Conteúdo social" content={`Use o gancho e a legenda da campanha de ${selectedProduct.name}, adaptados a Reel, Story, vídeo curto ou post informativo.`} />
-        </div>
-      </div>}
-
-      {selectedProduct && mercadoLivre?.isMercadoLivre && <div className="rounded-lg border border-gray-200 bg-white p-5">
-        <div className="flex items-center gap-2"><Megaphone className="h-4 w-4 text-yellow-600" /><h3 className="font-bold text-gray-900">Plano específico para Mercado Livre</h3></div>
-        <p className="mt-1 text-xs text-gray-500">Otimização de oferta com foco em clareza, confiança e conversão. Revise as políticas e os dados oficiais antes de publicar.</p>
-        <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <CampaignField title="Título objetivo" content={mercadoLivre.title} />
-          <CampaignField title="Descrição estruturada" content={mercadoLivre.description} />
-          <CampaignField title="Diferenciais" content={mercadoLivre.differentials} />
-          <CampaignField title="Palavras-chave" content={mercadoLivre.keywords} />
-          <CampaignField title="Objeções" content={mercadoLivre.objections} />
-          <CampaignField title="Perguntas e respostas" content={mercadoLivre.questions} />
-          <CampaignField title="Apresentação da oferta" content={mercadoLivre.presentation} />
-          <CampaignField title="Conteúdo para redes sociais" content={mercadoLivre.social} />
-          <CampaignField title="Indicadores disponíveis" content={mercadoLivre.metrics} />
         </div>
       </div>}
 

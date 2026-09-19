@@ -40,7 +40,7 @@ export default function PrivacyPolicyPage() {
             <section>
               <h2 className="text-lg font-bold text-gray-900">3. Uso das Informações e Links de Afiliados</h2>
               <p className="mt-2">
-                A plataforma atua como curadora e agregadora de ofertas de e-commerce e programas de afiliados (como Shopee, AliExpress, Mercado Livre, Amazon e Hotmart). Ao clicar em links de compra, o usuário é redirecionado para a loja parceira oficial.
+                A plataforma atua como curadora e agregadora de ofertas de e-commerce e programas de afiliados (como Shopee, AliExpress e Amazon). Ao clicar em links de compra, o usuário é redirecionado para a loja parceira oficial.
               </p>
               <p className="mt-2">
                 Não coletamos nem armazenamos dados de pagamento ou cartões de crédito dos usuários; todas as transações financeiras ocorrem com segurança diretamente nos sites parceiros.

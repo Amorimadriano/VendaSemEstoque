@@ -42,7 +42,7 @@ async function main() {
   console.log('Todos os produtos foram excluídos com sucesso.');
 
   // 3. Execução da descoberta e reimportação dos novos produtos
-  console.log('Iniciando reimportação de produtos via Mercado Livre e AliExpress...');
+  console.log('Iniciando reimportação de produtos via Amazon, AliExpress e Shopee...');
   const result = await runProductDiscovery();
   console.log('Resultado da reimportação:', JSON.stringify(result, null, 2));
 }

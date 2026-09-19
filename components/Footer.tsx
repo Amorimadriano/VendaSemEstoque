@@ -35,7 +35,6 @@ export default function Footer() {
             <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Parceiros Oficiais</h4>
             <ul className="space-y-2 text-xs text-gray-400">
               <li>Amazon Brasil</li>
-              <li>Mercado Livre</li>
               <li>Shopee</li>
               <li>AliExpress</li>
             </ul>

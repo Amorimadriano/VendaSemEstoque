@@ -17,10 +17,9 @@ type SyncLog = {
 };
 
 const MARKETPLACES = [
-  { slug: 'mercadolivre', label: 'Mercado Livre' },
+  { slug: 'amazon', label: 'Amazon Brasil' },
   { slug: 'aliexpress', label: 'AliExpress' },
   { slug: 'shopee', label: 'Shopee' },
-  { slug: 'amazon', label: 'Amazon Brasil' },
 ] as const;
 
 const STATUS_STYLES: Record<SyncLog['status'], string> = {

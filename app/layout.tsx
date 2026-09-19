@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'VendaSemEstoque | As Melhores Ofertas Sem Estoque Próprio',
   description: 'Catálogo de produtos virais, em alta e mais vendidos com links oficiais de afiliados e comissão transparente.',
-  keywords: ['venda sem estoque', 'afiliados', 'ofertas', 'amazon', 'mercado livre', 'shopee', 'aliexpress'],
+  keywords: ['venda sem estoque', 'afiliados', 'ofertas', 'amazon', 'shopee', 'aliexpress'],
   verification: {
     google: 'googlee518f3fb9cb4fb3a',
   },

@@ -5,11 +5,10 @@ import { getSupabase } from '../lib/supabase';
 const SEARCHES = (process.env.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa').split(',').map((term) => term.trim()).filter(Boolean);
 const MIN_RATING = Number(process.env.PRODUCT_MIN_RATING || 4);
 const MIN_REVIEWS = Number(process.env.PRODUCT_MIN_REVIEWS || 20);
-const DEFAULT_COMMISSION = Number(process.env.MERCADOLIVRE_COMMISSION_PERCENTAGE || 10);
+const DEFAULT_COMMISSION = 10;
 const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 20);
 const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 15000);
-// Sincronização automática para todos os 4 marketplaces suportados
-const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'mercadolivre,aliexpress,shopee,amazon').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
+const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'amazon,aliexpress,shopee').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
 
 function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
@@ -46,7 +45,7 @@ export function inferCategory(title: string, rawCategory?: string): { name: stri
     return { name: 'Gamer', slug: 'gamer' };
   }
 
-  const baseName = rawCategory && rawCategory !== 'Mercado Livre' && rawCategory !== 'AliExpress' ? rawCategory : 'Eletrônicos';
+  const baseName = rawCategory && !['Amazon', 'AliExpress', 'Shopee'].includes(rawCategory) ? rawCategory : 'Eletrônicos';
   return { name: baseName, slug: toSlug(baseName) };
 }
 
@@ -103,13 +102,6 @@ export function validateCandidateProduct(product: ExternalProduct, marketplaceSl
     return { isValid: false, reason: 'URL original inválida ou ausente' };
   }
 
-  if (marketplaceSlug === 'mercadolivre') {
-    const mlUrl = product.originalUrl.toLowerCase();
-    if (mlUrl.includes('lista.mercadolivre.com.br') || mlUrl.includes('/search') || mlUrl.includes('/busca')) {
-      return { isValid: false, reason: 'URL do Mercado Livre é página de busca, não anúncio de produto direto' };
-    }
-  }
-
   if (marketplaceSlug === 'aliexpress') {
     const aliUrl = product.originalUrl.toLowerCase();
     if (aliUrl.includes('/wholesale') || aliUrl.includes('/category') || aliUrl.includes('/search')) {
@@ -162,7 +154,7 @@ function calculateRanking(product: ExternalProduct, commissionPercentage: number
 async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) {
   const supabase = getSupabase();
   const now = new Date().toISOString();
-  const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : marketplaceSlug === 'shopee' ? 'Shopee' : marketplaceSlug === 'amazon' ? 'Amazon' : 'Mercado Livre';
+  const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : marketplaceSlug === 'shopee' ? 'Shopee' : 'Amazon';
   const { data: currentMarketplace } = await supabase.from('marketplaces').select('id').eq('slug', marketplaceSlug).maybeSingle();
   const { data: marketplace, error: marketplaceError } = await supabase.from('marketplaces').upsert({ id: currentMarketplace?.id || crypto.randomUUID(), name: marketplaceName, slug: marketplaceSlug, affiliate_status: 'ACTIVE', api_status: 'ACTIVE', created_at: now, updated_at: now }, { onConflict: 'slug' }).select('id').single();
   if (marketplaceError) throw marketplaceError;

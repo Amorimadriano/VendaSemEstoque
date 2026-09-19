@@ -5,8 +5,7 @@ export function appendMarketplaceTracking(url: string, marketplaceSlug: string |
   const affiliateUrl = new URL(url);
   const parameter = marketplaceSlug === 'amazon' ? 'ascsubtag'
     : marketplaceSlug === 'shopee' ? 'sub_id'
-      : marketplaceSlug === 'mercadolivre' ? 'matt_word'
-        : marketplaceSlug === 'aliexpress' ? 'aff_platform'
+      : marketplaceSlug === 'aliexpress' ? 'aff_platform'
           : 'subid_click';
   affiliateUrl.searchParams.set(parameter, trackingId);
   return affiliateUrl.toString();

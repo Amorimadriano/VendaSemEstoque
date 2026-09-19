@@ -5,7 +5,6 @@ import { appendMarketplaceTracking } from '../services/trackingService';
 const cases = [
   ['amazon', 'ascsubtag'],
   ['shopee', 'sub_id'],
-  ['mercadolivre', 'matt_word'],
   ['aliexpress', 'aff_platform'],
 ] as const;
 

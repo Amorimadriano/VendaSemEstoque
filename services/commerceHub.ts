@@ -1,7 +1,7 @@
 import { getMarketplaceIntegration } from '@/integrations';
 import { ExternalProduct } from '@/types';
 
-export type CommerceChannel = 'mercadolivre' | 'shopee' | 'aliexpress' | 'hotmart' | 'instagram' | 'facebook' | 'site';
+export type CommerceChannel = 'shopee' | 'aliexpress' | 'amazon' | 'hotmart' | 'instagram' | 'facebook' | 'site';
 
 type ConnectorStatus = {
   channel: CommerceChannel;
@@ -16,12 +16,6 @@ function hasValues(...values: Array<string | undefined>) {
 
 export function getCommerceHubStatus(): ConnectorStatus[] {
   return [
-    {
-      channel: 'mercadolivre',
-      ready: hasValues(process.env.MERCADOLIVRE_ACCESS_TOKEN || process.env.MERCADOLIVRE_REFRESH_TOKEN, process.env.MERCADOLIVRE_CLIENT_ID, process.env.MERCADOLIVRE_CLIENT_SECRET),
-      capabilities: ['buscar_produtos', 'consultar_preco', 'consultar_estoque', 'consultar_metricas'],
-      message: 'Modo afiliado: catálogo, preço e disponibilidade estão disponíveis. Conversões exigem o relatório oficial do programa de afiliados.',
-    },
     {
       channel: 'shopee',
       ready: hasValues(process.env.SHOPEE_APP_ID, process.env.SHOPEE_SECRET),
@@ -67,19 +61,19 @@ export function getCommerceHubStatus(): ConnectorStatus[] {
   ];
 }
 
-export async function buscarProdutos(channel: Extract<CommerceChannel, 'mercadolivre' | 'shopee' | 'aliexpress'>, query: string, limit = 20): Promise<ExternalProduct[]> {
+export async function buscarProdutos(channel: Extract<CommerceChannel, 'amazon' | 'shopee' | 'aliexpress'>, query: string, limit = 20): Promise<ExternalProduct[]> {
   return getMarketplaceIntegration(channel).getProducts(query, undefined, Math.min(limit, 50));
 }
 
-export async function consultarPreco(channel: Extract<CommerceChannel, 'mercadolivre' | 'shopee' | 'aliexpress'>, externalProductId: string) {
+export async function consultarPreco(channel: Extract<CommerceChannel, 'amazon' | 'shopee' | 'aliexpress'>, externalProductId: string) {
   return getMarketplaceIntegration(channel).getPrice(externalProductId);
 }
 
-export async function consultarEstoque(channel: Extract<CommerceChannel, 'mercadolivre' | 'shopee' | 'aliexpress'>, externalProductId: string) {
+export async function consultarEstoque(channel: Extract<CommerceChannel, 'amazon' | 'shopee' | 'aliexpress'>, externalProductId: string) {
   return getMarketplaceIntegration(channel).getAvailability(externalProductId);
 }
 
-export async function consultarVendas(channel: Extract<CommerceChannel, 'mercadolivre' | 'shopee' | 'aliexpress'>, startDate?: Date, endDate?: Date) {
+export async function consultarVendas(channel: Extract<CommerceChannel, 'amazon' | 'shopee' | 'aliexpress'>, startDate?: Date, endDate?: Date) {
   return getMarketplaceIntegration(channel).getConversions(startDate, endDate);
 }
 

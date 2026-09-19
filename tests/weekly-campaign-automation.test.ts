@@ -11,7 +11,7 @@ test('buildWeeklyCampaignPlan creates a full 7-day multi-channel funnel calendar
     price: 499.9,
     key_benefits: 'Cozinha sem óleo, 8 programas pré-definidos e cesto antiaderente.',
     key_objections: 'Consumo de energia, tamanho da bancada e facilidade de limpeza.',
-    marketplace: { name: 'Mercado Livre' },
+    marketplace: { name: 'Shopee' },
   });
 
   assert.equal(plan.productId, 'prod-123');
@@ -40,5 +40,5 @@ test('buildWeeklyCampaignPlan creates a full 7-day multi-channel funnel calendar
   // Valida conteúdo personalizado por produto
   const monday = plan.calendar.find((c) => c.dayOfWeek === 'Segunda-feira');
   assert.ok(monday?.hook.includes('Air Fryer Digital 5L'));
-  assert.ok(monday?.caption.includes('Mercado Livre'));
+  assert.ok(monday?.caption.includes('Shopee'));
 });

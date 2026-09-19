@@ -21,7 +21,7 @@ test('generateAbTestPlan creates an offer test for conversion-focused experiment
     name: 'Aspirador Sem Fio',
     price: 299,
     commissionPercentage: 18,
-    marketplace: { name: 'Mercado Livre' },
+    marketplace: { name: 'Amazon Brasil' },
   }, 'Oferta');
 
   assert.match(plan.hypothesis, /oferta|convers|preço|CTA/i);

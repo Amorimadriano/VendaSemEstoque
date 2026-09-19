@@ -37,7 +37,7 @@ function inferCategory(title: string, rawCategory?: string): { name: string; slu
     return { name: 'Gamer', slug: 'gamer' };
   }
 
-  const baseName = rawCategory && !['Mercado Livre', 'AliExpress', 'Shopee', 'Amazon'].includes(rawCategory) ? rawCategory : 'Eletrônicos';
+  const baseName = rawCategory && !['AliExpress', 'Shopee', 'Amazon'].includes(rawCategory) ? rawCategory : 'Eletrônicos';
   return { name: baseName, slug: toSlug(baseName) };
 }
 
@@ -199,7 +199,6 @@ async function main() {
   console.log('🚀 INICIANDO SINCRONIZAÇÃO COMPLETA DE PRODUTOS PARA TODOS OS MARKETPLACES');
   const marketplaces = [
     { slug: 'amazon', name: 'Amazon' },
-    { slug: 'mercadolivre', name: 'Mercado Livre' },
     { slug: 'aliexpress', name: 'AliExpress' },
     { slug: 'shopee', name: 'Shopee' },
   ];

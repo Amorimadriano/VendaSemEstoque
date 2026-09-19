@@ -120,10 +120,10 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
   const startedAt = new Date().toISOString();
   const supabase = getSupabase();
 
-  // ETAPA 1: Sincronizar marketplaces comerciais; Amazon possui rotina diária dedicada.
+  // ETAPA 1: Sincronizar marketplaces comerciais.
   let syncResult: any = { marketplaces: [], discovered: 0, published: 0, logs: [] };
   try {
-    syncResult = await runProductDiscovery(['mercadolivre', 'aliexpress', 'shopee']);
+    syncResult = await runProductDiscovery(['amazon', 'aliexpress', 'shopee']);
   } catch (err) {
     console.warn('[AutonomousAgent] Sincronização de catálogo gerou aviso:', err);
   }
