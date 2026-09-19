@@ -50,11 +50,12 @@ export class ShopeeIntegration implements MarketplaceIntegration {
   private convertNode(node: ShopeeNode, categoryName = 'Shopee'): ExternalProduct | null {
     const itemId = String(node.itemId || '').trim();
     const name = String(node.productName || '').trim();
-    const originalUrl = String(node.productLink || node.offerLink || '').trim();
+    const originalUrl = String(node.productLink || '').trim();
+    const affiliateUrl = String(node.offerLink || '').trim();
     const imageUrl = String(node.imageUrl || '').trim();
     const price = Number(node.price || node.priceMin || 0);
 
-    if (!itemId || !name || name.length < 5 || !originalUrl || !imageUrl.startsWith('http') || price <= 0) {
+    if (!itemId || !name || name.length < 5 || !originalUrl || !affiliateUrl || !imageUrl.startsWith('http') || price <= 0) {
       return null;
     }
 
@@ -77,7 +78,7 @@ export class ShopeeIntegration implements MarketplaceIntegration {
       commissionPercentage,
       commissionValue: Math.round(((price * commissionPercentage) / 100) * 100) / 100,
       originalUrl,
-      affiliateUrl: node.offerLink || originalUrl,
+      affiliateUrl,
       isAvailable: true,
     };
   }
@@ -137,12 +138,15 @@ export class ShopeeIntegration implements MarketplaceIntegration {
 
           if (products.length > 0) return products;
         }
+      } else {
+        throw new Error(`Shopee respondeu HTTP ${response.status}`);
       }
     } catch (err) {
-      console.warn(`[Shopee] Erro ao buscar produtos em ${endpoint}, utilizando catálogo curado:`, err);
+      console.warn(`[Shopee] Erro ao buscar produtos em ${endpoint}:`, err);
+      throw err;
     }
 
-    return this.getCuratedShopeeFallback(safeLimit, query || category);
+    return [];
   }
 
   private getCuratedShopeeFallback(limit = 10, categoryName = 'Shopee'): ExternalProduct[] {
@@ -257,12 +261,6 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     if (!id) return { status: 'NOT_FOUND', reason: 'ID ausente' };
 
     // 1. Verifica se é item do catálogo curado oficial
-    const curated = this.getCuratedShopeeFallback(20);
-    const foundCurated = curated.find((p) => p.externalProductId === id);
-    if (foundCurated) {
-      return { status: 'VERIFIED', product: foundCurated };
-    }
-
     if (!this.hasCredentials()) {
       return { status: 'ERROR', reason: 'Credenciais da Shopee não configuradas' };
     }

@@ -19,6 +19,17 @@ export interface VerificationAgentReport {
   errors: string[];
 }
 
+function isOfficialShopeeAffiliateUrl(value?: string | null): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return host === 's.shopee.com.br' || host === 'shope.ee' || host === 'affiliate.shopee.com.br';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Remove com segurança um produto do banco de dados, excluindo
  * em cascata todas as dependências em tabelas filhas.
@@ -98,7 +109,7 @@ export async function runProductPartnerVerifierAgent(options?: {
   try {
     let query = supabase
       .from('products')
-      .select('id, name, external_product_id, original_url, image_url, status, price, marketplace:marketplaces(id, slug, name)')
+      .select('id, name, external_product_id, original_url, affiliate_url, image_url, status, price, marketplace:marketplaces(id, slug, name)')
       .order('last_synced_at', { ascending: true, nullsFirst: true })
       .limit(batchSize);
 
@@ -141,6 +152,22 @@ export async function runProductPartnerVerifierAgent(options?: {
         continue;
       }
 
+      // A Shopee product URL without an official offerLink cannot attribute commission.
+      if (marketplaceSlug === 'shopee' && !isOfficialShopeeAffiliateUrl((product as any).affiliate_url)) {
+        const deleted = await deleteProductSafely(product.id);
+        if (deleted) {
+          report.deletedCount += 1;
+          report.deletedProducts.push({
+            id: product.id,
+            name: product.name,
+            externalProductId: externalId,
+            marketplaceSlug,
+            reason: 'Link da Shopee não é um offerLink oficial de afiliado.',
+          });
+        }
+        continue;
+      }
+
       try {
         const integration = getMarketplaceIntegration(marketplaceSlug);
         let shouldDelete = false;
@@ -171,6 +198,9 @@ export async function runProductPartnerVerifierAgent(options?: {
           } else if (!product.image_url || !product.image_url.startsWith('http')) {
             shouldDelete = true;
             deleteReason = 'Imagem do produto ausente ou inválida.';
+          } else if (marketplaceSlug === 'shopee' && !isOfficialShopeeAffiliateUrl((product as any).affiliate_url)) {
+            shouldDelete = true;
+            deleteReason = 'Link da Shopee não é um offerLink oficial de afiliado.';
           }
         }
 
