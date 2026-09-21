@@ -258,201 +258,11 @@ export class AmazonIntegration implements MarketplaceIntegration {
       const response = await this.requestAmazon<{ SearchResult?: { Items?: AmazonSearchItem[] } }>('SearchItems', requestBody);
       const items = response.SearchResult?.Items || [];
       const products = items.map((item) => this.convertAmazonItem(item)).filter((item): item is ExternalProduct => Boolean(item)).slice(0, Number(limit) || 10);
-      if (products.length > 0) return products;
-      console.warn('[Amazon] PA-API não retornou itens válidos; usando catálogo curado como fallback.');
-      return this.getCuratedAmazonFallback(limit);
+      return products;
     } catch (error) {
-      // PA-API indisponível (ex.: conta sem elegibilidade de vendas, throttling) — não deixa a vitrine vazia.
-      console.warn('[Amazon] Erro ao buscar produtos via PA-API; usando catálogo curado como fallback:', error);
-      return this.getCuratedAmazonFallback(limit);
+      console.warn('[Amazon] Erro ao buscar produtos via PA-API da Amazon:', error);
+      return [];
     }
-  }
-
-  private getCuratedAmazonFallback(limit = 10): ExternalProduct[] {
-    const curatedProducts: ExternalProduct[] = [
-      {
-        externalProductId: 'B0DCWRK79D',
-        name: 'Apple AirPods Pro (2ª Geração) com Estojo de Carregamento MagSafe',
-        description: 'Fones de ouvido Bluetooth com cancelamento ativo de ruído, modo transparência e até 6 horas de duração de bateria. Com carcaça de carregamento sem fio, até 30 horas de duração total da bateria.',
-        categoryName: 'Amazon',
-        brand: 'Apple',
-        imageUrl: 'https://images.unsplash.com/photo-1606220945770-b5b6c2c55bf1?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1606220945770-b5b6c2c55bf1?w=700&auto=format&fit=crop'],
-        price: 1899.00,
-        oldPrice: 2199.00,
-        discountPercentage: 13,
-        rating: 4.8,
-        reviewCount: 1250,
-        salesCount: 850,
-        commissionPercentage: 8,
-        commissionValue: 151.92,
-        originalUrl: 'https://www.amazon.com.br/dp/B0DCWRK79D',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B0DCWRK79D'),
-        isAvailable: true,
-      },
-      {
-        externalProductId: 'B0C7G9SY4D',
-        name: 'Samsung Galaxy Buds2 Pro - Fones Bluetooth com Cancelamento de Ruído',
-        description: 'Fones de ouvido Bluetooth Samsung Galaxy Buds2 Pro com cancelamento ativo de ruído (ANC), IPX7 à prova de água e até 5 horas de duração de bateria por carga.',
-        categoryName: 'Amazon',
-        brand: 'Samsung',
-        imageUrl: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=700&auto=format&fit=crop'],
-        price: 849.00,
-        oldPrice: 1099.00,
-        discountPercentage: 23,
-        rating: 4.6,
-        reviewCount: 742,
-        salesCount: 520,
-        commissionPercentage: 8,
-        commissionValue: 67.92,
-        originalUrl: 'https://www.amazon.com.br/dp/B0C7G9SY4D',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B0C7G9SY4D'),
-        isAvailable: true,
-      },
-      {
-        externalProductId: 'B0BF4DHPQM',
-        name: 'Kindle Paperwhite (11ª Geração) - E-reader com Tela de 6.8" e Wi-Fi',
-        description: 'E-reader Kindle com tela retina de alta resolução, luz ajustável, bateria que dura semanas e acesso a milhões de livros.',
-        categoryName: 'Amazon',
-        brand: 'Amazon',
-        imageUrl: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=700&auto=format&fit=crop'],
-        price: 599.00,
-        oldPrice: 799.00,
-        discountPercentage: 25,
-        rating: 4.7,
-        reviewCount: 1680,
-        salesCount: 2100,
-        commissionPercentage: 6,
-        commissionValue: 35.94,
-        originalUrl: 'https://www.amazon.com.br/dp/B0BF4DHPQM',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B0BF4DHPQM'),
-        isAvailable: true,
-      },
-      {
-        externalProductId: 'B0CQQQ6ZQZ',
-        name: 'Echo Dot (5ª Geração) - Alto-falante Inteligente com Alexa',
-        description: 'Assistente inteligente Echo Dot com som melhorado, temperatura ambiente visível na frente, configuração de movimento, reconhecimento de voz Alexa.',
-        categoryName: 'Amazon',
-        brand: 'Amazon',
-        imageUrl: 'https://images.unsplash.com/photo-1558089687-f282ffcbc126?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1558089687-f282ffcbc126?w=700&auto=format&fit=crop'],
-        price: 279.00,
-        oldPrice: 399.00,
-        discountPercentage: 30,
-        rating: 4.5,
-        reviewCount: 3420,
-        salesCount: 5200,
-        commissionPercentage: 7,
-        commissionValue: 19.53,
-        originalUrl: 'https://www.amazon.com.br/dp/B0CQQQ6ZQZ',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B0CQQQ6ZQZ'),
-        isAvailable: true,
-      },
-      {
-        externalProductId: 'B08C1W5N87',
-        name: 'Fire TV Stick HD com Controle Remoto por Voz com Alexa',
-        description: 'Streaming rápido em Full HD com controle remoto por voz com Alexa. Acesse Prime Video, Netflix, YouTube e milhares de canais e apps.',
-        categoryName: 'Amazon',
-        brand: 'Amazon',
-        imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=700&auto=format&fit=crop'],
-        price: 269.10,
-        oldPrice: 299.00,
-        discountPercentage: 10,
-        rating: 4.8,
-        reviewCount: 9800,
-        salesCount: 12000,
-        commissionPercentage: 7,
-        commissionValue: 18.84,
-        originalUrl: 'https://www.amazon.com.br/dp/B08C1W5N87',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B08C1W5N87'),
-        isAvailable: true,
-      },
-      {
-        externalProductId: 'B09GY4DZZV',
-        name: 'Caixa de Som Bluetooth JBL Flip 6 À Prova D\'Água IP67',
-        description: 'Caixa de som Bluetooth portátil JBL Flip 6 com som potente, graves profundos, até 12 horas de reprodução e classificação IP67 à prova d\'água e poeira.',
-        categoryName: 'Amazon',
-        brand: 'JBL',
-        imageUrl: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1545454675-3531b543be5d?w=700&auto=format&fit=crop'],
-        price: 549.00,
-        oldPrice: 699.00,
-        discountPercentage: 21,
-        rating: 4.8,
-        reviewCount: 4200,
-        salesCount: 3800,
-        commissionPercentage: 8,
-        commissionValue: 43.92,
-        originalUrl: 'https://www.amazon.com.br/dp/B09GY4DZZV',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B09GY4DZZV'),
-        isAvailable: true,
-      },
-      {
-        externalProductId: 'B07CMS5Q6P',
-        name: 'Mouse Gamer Sem Fio Logitech G305 LIGHTSPEED 12.000 DPI',
-        description: 'Mouse gamer sem fio de última geração com sensor HERO de 12.000 DPI, tecnologia LIGHTSPEED de 1 ms e bateria de até 250 horas de uso contínuo.',
-        categoryName: 'Amazon',
-        brand: 'Logitech',
-        imageUrl: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=700&auto=format&fit=crop'],
-        price: 199.90,
-        oldPrice: 249.90,
-        discountPercentage: 20,
-        rating: 4.7,
-        reviewCount: 8400,
-        salesCount: 7100,
-        commissionPercentage: 8,
-        commissionValue: 15.99,
-        originalUrl: 'https://www.amazon.com.br/dp/B07CMS5Q6P',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B07CMS5Q6P'),
-        isAvailable: true,
-      },
-      {
-        externalProductId: 'B08KFM5P5D',
-        name: 'Fritadeira Elétrica Sem Óleo Air Fryer Mondial Family 4 Litros',
-        description: 'Fritadeira sem óleo Air Fryer Mondial de 4L com controle de temperatura até 200°C, timer de 60 minutos e cesto antiaderente removível de fácil limpeza.',
-        categoryName: 'Amazon',
-        brand: 'Mondial',
-        imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1586201375761-83865001e31c?w=700&auto=format&fit=crop'],
-        price: 289.90,
-        oldPrice: 389.90,
-        discountPercentage: 26,
-        rating: 4.8,
-        reviewCount: 15300,
-        salesCount: 18400,
-        commissionPercentage: 8,
-        commissionValue: 23.19,
-        originalUrl: 'https://www.amazon.com.br/dp/B08KFM5P5D',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B08KFM5P5D'),
-        isAvailable: true,
-      },
-      {
-        externalProductId: 'B09W2DH23K',
-        name: 'Monitor Gamer LG UltraGear 24" 144Hz 1ms IPS Full HD',
-        description: 'Monitor gamer LG UltraGear com painel IPS de 24 polegadas, taxa de atualização de 144Hz, tempo de resposta de 1ms MBR, AMD FreeSync e bordas ultrafinas.',
-        categoryName: 'Amazon',
-        brand: 'LG',
-        imageUrl: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=700&auto=format&fit=crop',
-        images: ['https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=700&auto=format&fit=crop'],
-        price: 799.00,
-        oldPrice: 999.00,
-        discountPercentage: 20,
-        rating: 4.8,
-        reviewCount: 3100,
-        salesCount: 2600,
-        commissionPercentage: 7,
-        commissionValue: 55.93,
-        originalUrl: 'https://www.amazon.com.br/dp/B09W2DH23K',
-        affiliateUrl: this.buildAmazonUrl('https://www.amazon.com.br/dp/B09W2DH23K'),
-        isAvailable: true,
-      },
-    ];
-
-    return curatedProducts.slice(0, limit);
   }
 
   async getProduct(externalId: string): Promise<ExternalProduct | null> {
@@ -492,18 +302,11 @@ export class AmazonIntegration implements MarketplaceIntegration {
     if (!safeId) return { status: 'NOT_FOUND', reason: 'ID ausente' };
 
     const item = await this.getProduct(safeId);
-    if (item) {
+    if (item && item.isAvailable) {
       return { status: 'VERIFIED', product: item };
     }
 
-    // Verifica se é item do catálogo curado oficial
-    const curated = this.getCuratedAmazonFallback(20);
-    const foundCurated = curated.find((p) => p.externalProductId === safeId);
-    if (foundCurated) {
-      return { status: 'VERIFIED', product: foundCurated };
-    }
-
-    return { status: 'NOT_FOUND', reason: 'Produto Amazon não encontrado ou indisponível' };
+    return { status: 'NOT_FOUND', reason: 'Produto Amazon não encontrado ou indisponível em tempo real na API' };
   }
 
   async getCategories(): Promise<{ id: string; name: string; slug: string }[]> {

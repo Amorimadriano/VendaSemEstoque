@@ -332,6 +332,20 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
       continue;
     }
 
+    // Validação ativa em tempo real: verifica se o produto realmente existe e está disponível no marketplace
+    if (typeof (integration as any).verifyProduct === 'function') {
+      try {
+        const verifyResult = await (integration as any).verifyProduct(externalId);
+        if (verifyResult.status === 'NOT_FOUND') {
+          filteredOut += 1;
+          console.warn(`[Gatekeeper] Produto ${externalId} não existe ou está indisponível na origem: ${verifyResult.reason}`);
+          continue;
+        }
+      } catch (err) {
+        console.warn(`[Gatekeeper] Erro ao verificar existência em tempo real de ${externalId}:`, err);
+      }
+    }
+
     discovered.set(`${marketplaceSlug}:${externalId}`, productToValidate);
   }
 
