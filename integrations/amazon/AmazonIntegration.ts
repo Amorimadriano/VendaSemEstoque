@@ -184,9 +184,16 @@ export class AmazonIntegration implements MarketplaceIntegration {
       body: payload,
     });
 
-    const data = await response.json() as T & { Errors?: Array<{ Code?: string; Message?: string }> };
-    if (!response.ok || (Array.isArray((data as any)?.Errors) && (data as any).Errors.length > 0)) {
-      const errorMessage = (data as any)?.Errors?.[0]?.Message || `Amazon API retornou ${response.status}`;
+    const text = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`Amazon API retornou status ${response.status} com formato não-JSON: ${text.slice(0, 300)}`);
+    }
+
+    if (!response.ok || (Array.isArray(data?.Errors) && data.Errors.length > 0)) {
+      const errorMessage = data?.Errors?.[0]?.Message || `Amazon API retornou ${response.status}: ${text}`;
       throw new Error(errorMessage);
     }
 
@@ -261,7 +268,7 @@ export class AmazonIntegration implements MarketplaceIntegration {
       return products;
     } catch (error) {
       console.warn('[Amazon] Erro ao buscar produtos via PA-API da Amazon:', error);
-      return [];
+      throw error;
     }
   }
 
