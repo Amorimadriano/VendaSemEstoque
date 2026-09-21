@@ -8,3 +8,9 @@ build/
 .env.*.local
 coverage/
 *.log
+*.tsbuildinfo
+*-541c1142ea9f.json
+*-service-account*.json
+*serviceaccount*.json
+service-account*.json
+

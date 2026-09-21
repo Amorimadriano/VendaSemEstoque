@@ -6,11 +6,46 @@ import Footer from '@/components/Footer';
 import SupportChat from '@/components/SupportChat';
 
 const inter = Inter({ subsets: ['latin'] });
+const siteUrl = (process.env.SITE_URL || 'https://venda-sem-estoque.pages.dev').replace(/\/$/, '');
 
 export const metadata: Metadata = {
-  title: 'VendaSemEstoque | As Melhores Ofertas Sem Estoque Próprio',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'VendaSemEstoque | As Melhores Ofertas Sem Estoque Próprio',
+    template: '%s | VendaSemEstoque',
+  },
   description: 'Catálogo de produtos virais, em alta e mais vendidos com links oficiais de afiliados e comissão transparente.',
-  keywords: ['venda sem estoque', 'afiliados', 'ofertas', 'amazon', 'shopee', 'aliexpress'],
+  keywords: ['venda sem estoque', 'afiliados', 'ofertas', 'amazon', 'shopee', 'aliexpress', 'melhores preços', 'compras online'],
+  authors: [{ name: 'VendaSemEstoque' }],
+  creator: 'VendaSemEstoque',
+  publisher: 'VendaSemEstoque',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    url: siteUrl,
+    siteName: 'VendaSemEstoque',
+    title: 'VendaSemEstoque | As Melhores Ofertas Sem Estoque Próprio',
+    description: 'Catálogo de produtos virais, em alta e mais vendidos com links oficiais de afiliados e comissão transparente.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'VendaSemEstoque | As Melhores Ofertas Sem Estoque Próprio',
+    description: 'Catálogo de produtos virais, em alta e mais vendidos com links oficiais de afiliados e comissão transparente.',
+  },
+  alternates: {
+    canonical: siteUrl,
+  },
   verification: {
     google: 'googlee518f3fb9cb4fb3a',
   },

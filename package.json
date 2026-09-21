@@ -14,6 +14,7 @@
     "db:push": "prisma db push",
     "db:seed": "node --import tsx/esm prisma/seed.ts",
     "db:studio": "prisma studio",
+    "seo:submit-sitemap": "tsx scripts/submit-sitemap-to-google.ts",
     "products:discover": "tsx services/productDiscovery.ts"
   },
   "dependencies": {

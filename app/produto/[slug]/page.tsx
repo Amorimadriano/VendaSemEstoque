@@ -100,17 +100,20 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   const isLowestPrice = product.price <= minHistoricalPrice;
 
   // Schema.org JSON-LD para indexação e Rich Snippets no Google
-  const jsonLd = {
+  const productJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.name,
     image: images.length > 0 ? images : [product.imageUrl],
-    description: product.description,
+    description: product.description || product.name,
     brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
+    category: product.category?.name,
     offers: {
       '@type': 'Offer',
       price: product.price,
       priceCurrency: 'BRL',
+      priceValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      itemCondition: 'https://schema.org/NewCondition',
       availability: 'https://schema.org/InStock',
       url: `${baseUrl}/go/${product.id}`,
       seller: {
@@ -127,16 +130,45 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     } : undefined,
   };
 
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Início',
+        item: baseUrl,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: product.category.name,
+        item: `${baseUrl}/produtos?category=${product.category.slug}`,
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: product.name,
+        item: `${baseUrl}/produto/${product.slug}`,
+      },
+    ],
+  };
+
   return (
-    <div className="space-y-12">
-      {/* Schema.org JSON-LD Injection */}
+    <div className="space-y-12 pb-20 lg:pb-0">
+      {/* Schema.org JSON-LD Injections */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       
       {/* Breadcrumb */}
-      <nav className="text-xs text-gray-500 flex items-center gap-2">
+      <nav aria-label="Breadcrumb" className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
         <Link href="/" className="hover:text-blue-600">Home</Link>
         <span>/</span>
         <Link href={`/produtos?category=${product.category.slug}`} className="hover:text-blue-600">
@@ -333,6 +365,23 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           </div>
         </section>
       )}
+
+      {/* Mobile Sticky CTA Bar */}
+      <div className="fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 lg:hidden flex items-center justify-between gap-3 z-40 shadow-2xl">
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] text-gray-500 truncate">{product.marketplace.name}</div>
+          <div className="text-base font-extrabold text-gray-900 leading-tight truncate">{formattedPrice}</div>
+        </div>
+        <a
+          href={`/go/${product.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm py-2.5 px-5 rounded-xl flex items-center gap-1.5 shadow-md shrink-0"
+        >
+          <span>Ir para a Loja</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      </div>
     </div>
   );
 }
