@@ -56,6 +56,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const supabase = getSupabase();
 
+    const slug = request.nextUrl.searchParams.get('slug');
+
+    if (slug) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('slug', slug)
+        .single();
+
+      if (error) throw error;
+      return NextResponse.json(data);
+    }
+
     const { data, error } = await supabase
       .from('products')
       .select('*')
