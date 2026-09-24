@@ -69,15 +69,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json(data);
     }
 
-    const { data, error } = await supabase
+    // Try finding by UUID / ID first
+    const { data: byId, error: idError } = await supabase
       .from('products')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
+    if (byId) {
+      return NextResponse.json(byId);
+    }
 
-    return NextResponse.json(data);
+    // If not found by ID, try finding by slug as fallback
+    const { data: bySlug, error: slugError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('slug', id)
+      .maybeSingle();
+
+    if (bySlug) {
+      return NextResponse.json(bySlug);
+    }
+
+    if (idError) throw idError;
+    if (slugError) throw slugError;
+
+    return NextResponse.json({ error: 'Produto não encontrado' }, { status: 404 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Erro ao buscar produto' }, { status: 500 });
   }
