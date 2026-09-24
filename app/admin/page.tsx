@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Trash2,
   Search,
+  Pencil,
 } from 'lucide-react';
 import MarketingAgent from '@/components/MarketingAgent';
 import ContentApprovalQueue from '@/components/ContentApprovalQueue';
@@ -31,6 +32,8 @@ export default function AdminDashboardPage() {
   const [marketplaces, setMarketplaces] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [productSearch, setProductSearch] = useState('');
@@ -38,8 +41,37 @@ export default function AdminDashboardPage() {
   const [productStatus, setProductStatus] = useState('');
   const [productPage, setProductPage] = useState(1);
 
+  const getEmptyProductForm = () => ({
+    name: '',
+    description: '',
+    categoryId: '',
+    marketplaceId: '',
+    brand: '',
+    imageUrl: '',
+    price: '',
+    cost: '',
+    platformFees: '',
+    shippingCost: '',
+    marketingCost: '',
+    otherCosts: '',
+    oldPrice: '',
+    commissionPercentage: '',
+    externalProductId: '',
+    originalUrl: '',
+    affiliateUrl: '',
+    productType: '',
+    status: 'ACTIVE',
+    supplierInfo: '',
+    targetAudience: '',
+    keyBenefits: '',
+    keyObjections: '',
+    competitionNotes: '',
+    deliveryTime: '',
+    returnPolicy: '',
+  });
+
   // Form state para novo produto
-  const [newProduct, setNewProduct] = useState({
+  const [newProduct, setNewProduct] = useState(getEmptyProductForm());
     name: '',
     description: '',
     categoryId: '',
@@ -113,60 +145,124 @@ export default function AdminDashboardPage() {
     setProductPage(1);
   }, [productSearch, productMarketplace, productStatus]);
 
+  const openCreateProductModal = () => {
+    setIsEditMode(false);
+    setEditingProductId(null);
+    setNewProduct(getEmptyProductForm());
+    setIsModalOpen(true);
+  };
+
+  const openEditProductModal = (product: any) => {
+    setIsEditMode(true);
+    setEditingProductId(product.id);
+    setNewProduct({
+      name: product.name || '',
+      description: product.description || '',
+      categoryId: product.categoryId || product.category?.id || '',
+      marketplaceId: product.marketplaceId || product.marketplace?.id || '',
+      brand: product.brand || '',
+      imageUrl: product.imageUrl || '',
+      price: product.price != null ? String(product.price) : '',
+      cost: product.cost != null ? String(product.cost) : '',
+      platformFees: product.platformFees != null ? String(product.platformFees) : '',
+      shippingCost: product.shippingCost != null ? String(product.shippingCost) : '',
+      marketingCost: product.marketingCost != null ? String(product.marketingCost) : '',
+      otherCosts: product.otherCosts != null ? String(product.otherCosts) : '',
+      oldPrice: product.oldPrice != null ? String(product.oldPrice) : '',
+      commissionPercentage: product.commissionPercentage != null ? String(product.commissionPercentage) : '',
+      externalProductId: product.externalProductId || '',
+      originalUrl: product.originalUrl || '',
+      affiliateUrl: product.affiliateUrl || '',
+      productType: product.productType || '',
+      status: product.status || 'ACTIVE',
+      supplierInfo: product.supplierInfo || '',
+      targetAudience: product.targetAudience || '',
+      keyBenefits: product.keyBenefits || '',
+      keyObjections: product.keyObjections || '',
+      competitionNotes: product.competitionNotes || '',
+      deliveryTime: product.deliveryTime || '',
+      returnPolicy: product.returnPolicy || '',
+    });
+    setIsModalOpen(true);
+  };
+
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...newProduct,
+        price: parseFloat(newProduct.price),
+        cost: newProduct.cost ? parseFloat(newProduct.cost) : null,
+        platformFees: newProduct.platformFees ? parseFloat(newProduct.platformFees) : null,
+        shippingCost: newProduct.shippingCost ? parseFloat(newProduct.shippingCost) : null,
+        marketingCost: newProduct.marketingCost ? parseFloat(newProduct.marketingCost) : null,
+        otherCosts: newProduct.otherCosts ? parseFloat(newProduct.otherCosts) : null,
+        oldPrice: newProduct.oldPrice ? parseFloat(newProduct.oldPrice) : null,
+        commissionPercentage: parseFloat(newProduct.commissionPercentage),
+        categoryId: newProduct.categoryId || categories[0]?.id,
+        marketplaceId: newProduct.marketplaceId || marketplaces[0]?.id,
+      };
+
       const res = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newProduct,
-          price: parseFloat(newProduct.price),
-          cost: newProduct.cost ? parseFloat(newProduct.cost) : null,
-          platformFees: newProduct.platformFees ? parseFloat(newProduct.platformFees) : null,
-          shippingCost: newProduct.shippingCost ? parseFloat(newProduct.shippingCost) : null,
-          marketingCost: newProduct.marketingCost ? parseFloat(newProduct.marketingCost) : null,
-          otherCosts: newProduct.otherCosts ? parseFloat(newProduct.otherCosts) : null,
-          oldPrice: newProduct.oldPrice ? parseFloat(newProduct.oldPrice) : null,
-          commissionPercentage: parseFloat(newProduct.commissionPercentage),
-          categoryId: newProduct.categoryId || categories[0]?.id,
-          marketplaceId: newProduct.marketplaceId || marketplaces[0]?.id,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setIsModalOpen(false);
-        setNewProduct({
-          name: '',
-          description: '',
-          categoryId: '',
-          marketplaceId: '',
-          brand: '',
-          imageUrl: '',
-          price: '',
-          cost: '',
-          platformFees: '',
-          shippingCost: '',
-          marketingCost: '',
-          otherCosts: '',
-          oldPrice: '',
-          commissionPercentage: '',
-          externalProductId: '',
-          originalUrl: '',
-          affiliateUrl: '',
-          productType: '',
-          supplierInfo: '',
-          targetAudience: '',
-          keyBenefits: '',
-          keyObjections: '',
-          competitionNotes: '',
-          deliveryTime: '',
-          returnPolicy: '',
-        });
+        setIsEditMode(false);
+        setEditingProductId(null);
+        setNewProduct(getEmptyProductForm());
         fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || 'Erro ao salvar produto.');
       }
     } catch (error) {
       console.error(error);
+      alert('Erro ao salvar produto.');
+    }
+  };
+
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProductId) return;
+
+    try {
+      const payload = {
+        ...newProduct,
+        price: parseFloat(newProduct.price),
+        cost: newProduct.cost ? parseFloat(newProduct.cost) : null,
+        platformFees: newProduct.platformFees ? parseFloat(newProduct.platformFees) : null,
+        shippingCost: newProduct.shippingCost ? parseFloat(newProduct.shippingCost) : null,
+        marketingCost: newProduct.marketingCost ? parseFloat(newProduct.marketingCost) : null,
+        otherCosts: newProduct.otherCosts ? parseFloat(newProduct.otherCosts) : null,
+        oldPrice: newProduct.oldPrice ? parseFloat(newProduct.oldPrice) : null,
+        commissionPercentage: parseFloat(newProduct.commissionPercentage),
+        categoryId: newProduct.categoryId || categories[0]?.id,
+        marketplaceId: newProduct.marketplaceId || marketplaces[0]?.id,
+      };
+
+      const res = await fetch(`/api/products/${editingProductId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        setIsModalOpen(false);
+        setIsEditMode(false);
+        setEditingProductId(null);
+        setNewProduct(getEmptyProductForm());
+        fetchData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || 'Erro ao atualizar produto.');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao atualizar produto.');
     }
   };
 
@@ -349,6 +445,15 @@ export default function AdminDashboardPage() {
             </span>
           </div>
 
+          <button
+            type="button"
+            onClick={openCreateProductModal}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow-xs transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Novo Produto
+          </button>
+
           {/* Barra de Ações em Lote */}
           {selectedProductIds.length > 0 && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl">
@@ -451,6 +556,14 @@ export default function AdminDashboardPage() {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditProductModal(p)}
+                          className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-800 font-semibold text-[11px] bg-amber-50 px-2 py-1 rounded-lg border border-amber-200"
+                          title="Editar produto"
+                        >
+                          Editar <Pencil className="w-3 h-3" />
+                        </button>
                         <a
                           href={`/go/${p.id}`}
                           target="_blank"
@@ -488,9 +601,9 @@ export default function AdminDashboardPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 relative shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-gray-900">Cadastrar Novo Produto Sem Estoque</h3>
+            <h3 className="text-lg font-bold text-gray-900">{isEditMode ? 'Editar Produto' : 'Cadastrar Novo Produto Sem Estoque'}</h3>
             
-            <form onSubmit={handleCreateProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <form onSubmit={isEditMode ? handleUpdateProduct : handleCreateProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div className="md:col-span-2">
                 <label className="block font-semibold text-gray-700 mb-1">Nome do Produto</label>
                 <input
@@ -543,6 +656,16 @@ export default function AdminDashboardPage() {
                   <option value="PHYSICAL">Produto físico</option>
                   <option value="DIGITAL">Produto digital</option>
                   <option value="AFFILIATE">Afiliado</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Status</label>
+                <select value={newProduct.status} onChange={(e) => setNewProduct({ ...newProduct, status: e.target.value })} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2">
+                  <option value="ACTIVE">Ativo</option>
+                  <option value="INACTIVE">Inativo</option>
+                  <option value="OUT_OF_STOCK">Sem estoque</option>
+                  <option value="PENDING_REVIEW">Em revisão</option>
                 </select>
               </div>
 
@@ -668,7 +791,12 @@ export default function AdminDashboardPage() {
               <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setIsEditMode(false);
+                    setEditingProductId(null);
+                    setNewProduct(getEmptyProductForm());
+                  }}
                   className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-gray-700"
                 >
                   Cancelar
@@ -677,7 +805,7 @@ export default function AdminDashboardPage() {
                   type="submit"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg"
                 >
-                  Salvar Produto
+                  {isEditMode ? 'Salvar Alterações' : 'Salvar Produto'}
                 </button>
               </div>
             </form>

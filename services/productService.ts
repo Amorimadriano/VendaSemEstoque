@@ -5,6 +5,9 @@ import { getSupabase } from '@/lib/supabase';
 function normalizeProduct(product: any) {
   return {
     ...product,
+    categoryId: product.category_id,
+    marketplaceId: product.marketplace_id,
+    productType: product.product_type,
     imageUrl: product.image_url,
     oldPrice: product.old_price,
     discountPercentage: product.discount_percentage,
@@ -17,8 +20,16 @@ function normalizeProduct(product: any) {
     externalProductId: product.external_product_id,
     originalUrl: product.original_url,
     affiliateUrl: product.affiliate_url,
+    supplierInfo: product.supplier_info,
+    targetAudience: product.target_audience,
+    keyBenefits: product.key_benefits,
+    keyObjections: product.key_objections,
+    competitionNotes: product.competition_notes,
+    deliveryTime: product.delivery_time,
+    returnPolicy: product.return_policy,
     isBestSeller: product.is_best_seller,
     isTrending: product.is_trending,
+    status: product.status,
     priceHistories: (product.priceHistories || product.price_history || []).map((history: any) => ({
       ...history,
       oldPrice: history.old_price,

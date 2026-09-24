@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       competitionNotes,
       deliveryTime,
       returnPolicy,
+      status = 'ACTIVE',
     } = body;
 
     const computedDiscount = discountPercentage || (oldPrice ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0);
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
         competition_notes: competitionNotes || null,
         delivery_time: deliveryTime || null,
         return_policy: returnPolicy || null,
-        status: 'ACTIVE',
+        status: status || 'ACTIVE',
         created_at: now,
         updated_at: now,
         last_synced_at: now,
