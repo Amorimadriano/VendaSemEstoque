@@ -41,65 +41,41 @@ export default function AdminDashboardPage() {
   const [productStatus, setProductStatus] = useState('');
   const [productPage, setProductPage] = useState(1);
 
-  const getEmptyProductForm = () => ({
-    name: '',
-    description: '',
-    categoryId: '',
-    marketplaceId: '',
-    brand: '',
-    imageUrl: '',
-    price: '',
-    cost: '',
-    platformFees: '',
-    shippingCost: '',
-    marketingCost: '',
-    otherCosts: '',
-    oldPrice: '',
-    commissionPercentage: '',
-    externalProductId: '',
-    originalUrl: '',
-    affiliateUrl: '',
-    productType: '',
-    status: 'ACTIVE',
-    supplierInfo: '',
-    targetAudience: '',
-    keyBenefits: '',
-    keyObjections: '',
-    competitionNotes: '',
-    deliveryTime: '',
-    returnPolicy: '',
-  });
+  // ...existing code...
 
-  // Form state para novo produto
-  const [newProduct, setNewProduct] = useState(getEmptyProductForm());
-    name: '',
-    description: '',
-    categoryId: '',
-    marketplaceId: '',
-    brand: '',
-    imageUrl: '',
-    price: '',
-    cost: '',
-    platformFees: '',
-    shippingCost: '',
-    marketingCost: '',
-    otherCosts: '',
-    oldPrice: '',
-    commissionPercentage: '',
-    externalProductId: '',
-    originalUrl: '',
-    affiliateUrl: '',
-    productType: '',
-    supplierInfo: '',
-    targetAudience: '',
-    keyBenefits: '',
-    keyObjections: '',
-    competitionNotes: '',
-    deliveryTime: '',
-    returnPolicy: '',
-  });
+const getEmptyProductForm = () => ({
+  name: '',
+  description: '',
+  categoryId: '',
+  marketplaceId: '',
+  brand: '',
+  imageUrl: '',
+  price: '',
+  cost: '',
+  platformFees: '',
+  shippingCost: '',
+  marketingCost: '',
+  otherCosts: '',
+  oldPrice: '',
+  commissionPercentage: '',
+  externalProductId: '',
+  originalUrl: '',
+  affiliateUrl: '',
+  productType: '',
+  status: 'ACTIVE',
+  supplierInfo: '',
+  targetAudience: '',
+  keyBenefits: '',
+  keyObjections: '',
+  competitionNotes: '',
+  deliveryTime: '',
+  returnPolicy: '',
+});
 
-  const fetchData = async () => {
+// Form state para novo produto
+const [newProduct, setNewProduct] = useState(getEmptyProductForm());
+
+const fetchData = async () => {
     setLoading(true);
     try {
       const [resMetrics, resProducts, resCats, resMarkets] = await Promise.all([
