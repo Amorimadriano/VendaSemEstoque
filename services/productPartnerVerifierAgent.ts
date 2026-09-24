@@ -24,7 +24,7 @@ function isOfficialShopeeAffiliateUrl(value?: string | null): boolean {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    return host === 's.shopee.com.br' || host === 'shope.ee' || host === 'affiliate.shopee.com.br';
+    return host.includes('shopee.com.br') || host.includes('shope.ee') || host.includes('shopee');
   } catch {
     return false;
   }

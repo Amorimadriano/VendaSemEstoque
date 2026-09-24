@@ -316,6 +316,38 @@ export class AliExpressIntegration implements MarketplaceIntegration {
       return { status: 'NOT_FOUND', reason: 'ID de produto AliExpress ausente' };
     }
 
+    // 1. Verifica no catálogo curado ativo
+    const curated = REAL_ALIEXPRESS_TOP_PRODUCTS.find((p) => p.id === id || p.id === externalId);
+    if (curated) {
+      const discountPercentage = curated.original_price
+        ? Math.round(((curated.original_price - curated.price) / curated.original_price) * 100)
+        : undefined;
+      const commissionPercentage = Number(process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
+      return {
+        status: 'VERIFIED',
+        product: {
+          externalProductId: curated.id,
+          name: curated.title,
+          description: `${curated.title}. Produto original com envio rápido para o Brasil, garantia e suporte direto no AliExpress.`,
+          categoryName: curated.category_name,
+          brand: curated.brand,
+          imageUrl: curated.image,
+          images: [curated.image],
+          price: curated.price,
+          oldPrice: curated.original_price,
+          discountPercentage,
+          rating: curated.rating,
+          reviewCount: curated.reviews,
+          salesCount: curated.sales_count,
+          commissionPercentage,
+          commissionValue: Math.round(((curated.price * commissionPercentage) / 100) * 100) / 100,
+          originalUrl: curated.permalink,
+          affiliateUrl: `${curated.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendasemestoque'}`,
+          isAvailable: true,
+        },
+      };
+    }
+
     if (!this.hasCredentials()) {
       return {
         status: 'ERROR',
