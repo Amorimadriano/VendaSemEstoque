@@ -57,11 +57,14 @@ async function main() {
       deleteReason = 'Produto fora de estoque / inativo no catálogo.';
     } else {
       // Verificar integridade com a integração
-      const check = await integration.verifyProduct(externalId);
-      if (check.status === 'NOT_FOUND') {
-        shouldDelete = true;
-        deleteReason = check.reason || 'Produto não encontrado na base parceira.';
-      } else if (!product.image_url || !product.image_url.startsWith('http')) {
+      if (integration && typeof integration.verifyProduct === 'function') {
+  const check = await integration.verifyProduct(externalId);
+
+  if (check.status === 'NOT_FOUND') {
+    shouldDelete = true;
+    deleteReason = check.reason || 'Produto não encontrado na base parceira.';
+  }
+} else if (!product.image_url || !product.image_url.startsWith('http')) {
         shouldDelete = true;
         deleteReason = 'Imagem inválida ou ausente.';
       } else if (!product.original_url || !product.original_url.startsWith('http')) {
