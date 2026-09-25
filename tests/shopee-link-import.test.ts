@@ -104,6 +104,29 @@ test('finds the product ID in og:url when the redirect path is generic', async (
   assert.equal(product.productUrl, 'https://shopee.com.br/product/123/456');
 });
 
+test('extracts an item ID embedded in a Shopee SEO slug', async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input) === 'https://s.shopee.com.br/example') {
+      return new Response(null, { status: 302, headers: { location: 'https://shopee.com.br/fone-bluetooth-i.123.456' } });
+    }
+    return new Response('<html><body>Product page without metadata</body></html>', { headers: { 'content-type': 'text/html' } });
+  };
+  const product = await resolveShopeeAffiliateUrl(
+    'https://s.shopee.com.br/example',
+    async (externalProductId) => ({
+      productUrl: 'https://shopee.com.br/fone-bluetooth-i.123.456',
+      externalProductId,
+      name: 'Fone Bluetooth teste',
+      description: 'Fone para teste',
+      imageUrl: 'https://down-br.img.susercontent.com/fone.png',
+      price: 49.9,
+    }),
+    fetcher,
+  );
+
+  assert.equal(product.externalProductId, '456');
+});
+
 test('explains when the redirect and product page do not expose an item ID', async () => {
   const fetcher: typeof fetch = async (input) => {
     if (String(input) === 'https://s.shopee.com.br/example') {

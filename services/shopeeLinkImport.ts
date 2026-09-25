@@ -92,7 +92,7 @@ function getJsonLdProduct(html: string) {
 
 function getExternalProductId(productUrl: string) {
   const productPath = new URL(productUrl).pathname;
-  return productPath.match(/\/product\/\d+\/(\d+)/i)?.[1] || productPath.match(/\/i\.\d+\.(\d+)/i)?.[1];
+  return productPath.match(/\/product\/\d+\/(\d+)/i)?.[1] || productPath.match(/i\.\d+\.(\d+)/i)?.[1];
 }
 
 function getCanonicalProductUrl(html: string, fallbackUrl: string) {
