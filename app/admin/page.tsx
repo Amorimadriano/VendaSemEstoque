@@ -207,18 +207,27 @@ const fetchData = async () => {
   };
 
   const handleShopeeImport = async () => {
-    const urls = [...new Set(shopeeImportUrls.split(/[\s,]+/).map((url) => url.trim()).filter(Boolean))];
-    if (!urls.length) return;
+    const lines = shopeeImportUrls.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) return;
+    if (lines.length % 2 !== 0) {
+      alert('Cole dois links por produto: primeiro o link afiliado, depois o link direto do produto.');
+      return;
+    }
+
+    const entries = [];
+    for (let index = 0; index < lines.length; index += 2) {
+      entries.push({ affiliateUrl: lines[index], productUrl: lines[index + 1] });
+    }
 
     setIsImportingShopee(true);
     setShopeeImportResults([]);
     const results: typeof shopeeImportResults = [];
     try {
-      for (let offset = 0; offset < urls.length; offset += 5) {
+      for (let offset = 0; offset < entries.length; offset += 5) {
         const response = await fetch('/api/admin/shopee-import', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: urls.slice(offset, offset + 5) }),
+          body: JSON.stringify({ entries: entries.slice(offset, offset + 5) }),
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Falha ao importar o lote.');
@@ -400,7 +409,7 @@ const fetchData = async () => {
           <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Importar produtos Shopee</h2>
-              <p className="text-sm text-gray-600 mt-1">Cole links HTTPS de afiliado, um por linha. O Pages buscará os dados públicos do produto.</p>
+              <p className="text-sm text-gray-600 mt-1">Para cada produto, cole o link afiliado e, logo abaixo, a URL direta do produto. Repita os pares.</p>
             </div>
             <textarea
               rows={7}

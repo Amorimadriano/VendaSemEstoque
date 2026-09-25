@@ -172,6 +172,7 @@ export async function resolveShopeeAffiliateUrl(
   affiliateUrl: string,
   lookupProduct?: ShopeeProductLookup,
   fetcher: typeof fetch = fetch,
+  productUrlHint?: string,
 ): Promise<ShopeeProductMetadata> {
   let currentUrl: URL;
   try {
@@ -180,6 +181,32 @@ export async function resolveShopeeAffiliateUrl(
     throw new Error('Link inválido.');
   }
   if (!isAllowedShopeeUrl(currentUrl)) throw new Error('Informe um link HTTPS de afiliado Shopee.');
+
+  if (productUrlHint) {
+    let directProductUrl: URL;
+    try {
+      directProductUrl = new URL(productUrlHint);
+    } catch {
+      throw new Error('A URL direta do produto é inválida.');
+    }
+    if (!isAllowedShopeeUrl(directProductUrl)) throw new Error('A URL direta precisa pertencer à Shopee.');
+    const externalProductId = getExternalProductId(directProductUrl.toString());
+    if (!externalProductId) throw new Error('A URL direta da Shopee não contém o ID do produto.');
+    if (!lookupProduct) throw new Error('A consulta oficial da Shopee não está disponível.');
+
+    const product = await lookupProduct(externalProductId);
+    if (
+      product?.externalProductId !== externalProductId ||
+      product.name.length < 5 ||
+      !product.imageUrl.startsWith('https://') ||
+      !Number.isFinite(product.price) ||
+      product.price <= 0
+    ) {
+      throw new Error('A API oficial da Shopee não confirmou esse produto pelo ID informado.');
+    }
+
+    return { ...product, affiliateUrl, productUrl: directProductUrl.toString() };
+  }
 
   let response: Response | undefined;
   for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {

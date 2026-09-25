@@ -127,6 +127,36 @@ test('extracts an item ID embedded in a Shopee SEO slug', async () => {
   assert.equal(product.externalProductId, '456');
 });
 
+test('uses a supplied direct product URL without resolving the affiliate short link', async () => {
+  const affiliateUrl = 'https://s.shopee.com.br/3g3wlh3aa7';
+  const productUrl = 'https://shopee.com.br/product/1475933346/23994392192?mmp_pid=an_18316631281';
+  let lookedUpId = '';
+  const product = await resolveShopeeAffiliateUrl(
+    affiliateUrl,
+    async (externalProductId) => {
+      lookedUpId = externalProductId;
+      return {
+        productUrl,
+        externalProductId,
+        name: 'Produto Shopee confirmado',
+        description: 'Descrição do produto confirmado',
+        imageUrl: 'https://down-br.img.susercontent.com/product.png',
+        price: 99.9,
+        commissionPercentage: 10,
+      };
+    },
+    async () => {
+      throw new Error('A URL curta não deve ser consultada quando há URL direta.');
+    },
+    productUrl,
+  );
+
+  assert.equal(lookedUpId, '23994392192');
+  assert.equal(product.externalProductId, '23994392192');
+  assert.equal(product.affiliateUrl, affiliateUrl);
+  assert.equal(product.productUrl, productUrl);
+});
+
 test('explains when the redirect and product page do not expose an item ID', async () => {
   const fetcher: typeof fetch = async (input) => {
     if (String(input) === 'https://s.shopee.com.br/example') {

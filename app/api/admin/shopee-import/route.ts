@@ -12,13 +12,25 @@ function toSlug(value: string) {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
+  const rawEntries: unknown = body && typeof body === 'object' ? (body as { entries?: unknown }).entries : undefined;
   const rawUrls: unknown = body && typeof body === 'object' ? (body as { urls?: unknown }).urls : undefined;
-  const urls: string[] = Array.isArray(rawUrls)
+  const entries: Array<{ affiliateUrl: string; productUrl?: string }> = Array.isArray(rawEntries)
+    ? rawEntries.flatMap((entry): Array<{ affiliateUrl: string; productUrl?: string }> => {
+      if (!entry || typeof entry !== 'object') return [];
+      const candidate = entry as { affiliateUrl?: unknown; productUrl?: unknown };
+      if (typeof candidate.affiliateUrl !== 'string' || !candidate.affiliateUrl.trim()) return [];
+      return [{
+        affiliateUrl: candidate.affiliateUrl.trim(),
+        ...(typeof candidate.productUrl === 'string' && candidate.productUrl.trim() ? { productUrl: candidate.productUrl.trim() } : {}),
+      }];
+    })
+    : Array.isArray(rawUrls)
     ? [...new Set(rawUrls.filter((url): url is string => typeof url === 'string').map((url) => url.trim()).filter(Boolean))]
+      .map((affiliateUrl) => ({ affiliateUrl }))
     : [];
 
-  if (!urls.length) return NextResponse.json({ error: 'Informe ao menos um link Shopee.' }, { status: 400 });
-  if (urls.length > 5) return NextResponse.json({ error: 'Importe no máximo cinco links por lote.' }, { status: 400 });
+  if (!entries.length) return NextResponse.json({ error: 'Informe pares de link afiliado e URL direta Shopee.' }, { status: 400 });
+  if (entries.length > 5) return NextResponse.json({ error: 'Importe no máximo cinco produtos por lote.' }, { status: 400 });
 
   const supabase = getSupabase();
   const now = new Date().toISOString();
@@ -41,7 +53,8 @@ export async function POST(request: Request) {
 
   const shopeeIntegration = new ShopeeIntegration();
   const results = [];
-  for (const affiliateUrl of urls) {
+  for (const entry of entries) {
+    const { affiliateUrl, productUrl } = entry;
     try {
       const item = await resolveShopeeAffiliateUrl(affiliateUrl, async (externalProductId) => {
         const candidates = await shopeeIntegration.getProducts(externalProductId, undefined, 50);
@@ -57,7 +70,7 @@ export async function POST(request: Request) {
           oldPrice: product.oldPrice,
           commissionPercentage: product.commissionPercentage,
         };
-      });
+      }, undefined, productUrl);
       const inferredCategory = inferCategory(item.name, 'Shopee');
       const { data: existingCategory, error: existingCategoryError } = await supabase
         .from('categories')
