@@ -18,6 +18,7 @@ import {
   Trash2,
   Search,
   Pencil,
+  Link2,
 } from 'lucide-react';
 import MarketingAgent from '@/components/MarketingAgent';
 import ContentApprovalQueue from '@/components/ContentApprovalQueue';
@@ -40,6 +41,10 @@ export default function AdminDashboardPage() {
   const [productMarketplace, setProductMarketplace] = useState('');
   const [productStatus, setProductStatus] = useState('');
   const [productPage, setProductPage] = useState(1);
+  const [isShopeeImportOpen, setIsShopeeImportOpen] = useState(false);
+  const [shopeeImportUrls, setShopeeImportUrls] = useState('');
+  const [isImportingShopee, setIsImportingShopee] = useState(false);
+  const [shopeeImportResults, setShopeeImportResults] = useState<Array<{ affiliateUrl: string; status: string; name?: string; message?: string }>>([]);
 
   // ...existing code...
 
@@ -201,6 +206,33 @@ const fetchData = async () => {
     }
   };
 
+  const handleShopeeImport = async () => {
+    const urls = [...new Set(shopeeImportUrls.split(/[\s,]+/).map((url) => url.trim()).filter(Boolean))];
+    if (!urls.length) return;
+
+    setIsImportingShopee(true);
+    setShopeeImportResults([]);
+    const results: typeof shopeeImportResults = [];
+    try {
+      for (let offset = 0; offset < urls.length; offset += 5) {
+        const response = await fetch('/api/admin/shopee-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: urls.slice(offset, offset + 5) }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Falha ao importar o lote.');
+        results.push(...(payload.results || []));
+        setShopeeImportResults([...results]);
+      }
+      if (results.some((result) => result.status === 'imported')) await fetchData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Falha ao importar links Shopee.');
+    } finally {
+      setIsImportingShopee(false);
+    }
+  };
+
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProductId) return;
@@ -350,8 +382,55 @@ const fetchData = async () => {
           >
             <Plus className="w-4 h-4" /> Novo Produto Manual
           </button>
+          <button
+            onClick={() => {
+              setShopeeImportUrls('');
+              setShopeeImportResults([]);
+              setIsShopeeImportOpen(true);
+            }}
+            className="bg-white border border-gray-300 hover:border-orange-400 text-gray-700 text-xs font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 shadow-sm"
+          >
+            <Link2 className="w-4 h-4" /> Importar links Shopee
+          </button>
         </div>
       </div>
+
+      {isShopeeImportOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Importar produtos Shopee</h2>
+              <p className="text-sm text-gray-600 mt-1">Cole links HTTPS de afiliado, um por linha. O Pages buscará os dados públicos do produto.</p>
+            </div>
+            <textarea
+              rows={7}
+              value={shopeeImportUrls}
+              onChange={(event) => setShopeeImportUrls(event.target.value)}
+              disabled={isImportingShopee}
+              placeholder="https://s.shopee.com.br/..."
+              className="w-full border border-gray-300 rounded-lg p-3 text-sm font-mono disabled:bg-gray-100"
+            />
+            {shopeeImportResults.length > 0 && (
+              <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100" aria-live="polite">
+                {shopeeImportResults.map((result, index) => (
+                  <div key={`${result.affiliateUrl}-${index}`} className="px-3 py-2 text-xs flex items-start justify-between gap-3">
+                    <span className="min-w-0 break-all text-gray-700">{result.name || result.affiliateUrl}<span className="block text-gray-500">{result.message || result.affiliateUrl}</span></span>
+                    <span className={result.status === 'imported' ? 'shrink-0 text-emerald-700 font-semibold' : 'shrink-0 text-red-700 font-semibold'}>
+                      {result.status === 'imported' ? 'Importado' : 'Falhou'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 border-t border-gray-200 pt-3">
+              <button type="button" disabled={isImportingShopee} onClick={() => setIsShopeeImportOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50">Fechar</button>
+              <button type="button" disabled={isImportingShopee || !shopeeImportUrls.trim()} onClick={handleShopeeImport} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                {isImportingShopee ? 'Importando...' : 'Importar links'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Grid de Métricas Principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
