@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseShopeeProductPage } from '../services/shopeeLinkImport';
+import { parseShopeeProductPage, resolveShopeeAffiliateUrl } from '../services/shopeeLinkImport';
 
 test('extracts product details from Shopee Open Graph metadata', async () => {
   const html = '<html><head><meta content="Produto de teste | Shopee Brasil" property="og:title"><meta property="og:image" content="https://down-br.img.susercontent.com/image.png"><meta property="product:price:amount" content="1.234,56"></head></html>';
@@ -25,5 +25,57 @@ test('rejects pages without verifiable title, image, and price', async () => {
   await assert.rejects(
     parseShopeeProductPage('<html><head><meta property="og:title" content="Sem dados"></head></html>', 'https://shopee.com.br/product/123/456', 'https://s.shopee.com.br/example'),
     /não forneceu nome, imagem HTTPS e preço verificáveis/,
+  );
+});
+
+test('falls back to official product data for the exact ID in a short-link destination', async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input) === 'https://s.shopee.com.br/example') {
+      return new Response(null, { status: 302, headers: { location: 'https://shopee.com.br/product/123/456' } });
+    }
+    return new Response('<html><body>Product page without metadata</body></html>', { headers: { 'content-type': 'text/html' } });
+  };
+  const product = await resolveShopeeAffiliateUrl(
+    'https://s.shopee.com.br/example',
+    async (externalProductId) => ({
+      productUrl: 'https://shopee.com.br/product/123/456',
+      externalProductId,
+      name: 'Fone Bluetooth teste',
+      description: 'Fone para teste',
+      imageUrl: 'https://down-br.img.susercontent.com/fone.png',
+      price: 49.9,
+      commissionPercentage: 8,
+    }),
+    fetcher,
+  );
+
+  assert.equal(product.externalProductId, '456');
+  assert.equal(product.name, 'Fone Bluetooth teste');
+  assert.equal(product.affiliateUrl, 'https://s.shopee.com.br/example');
+  assert.equal(product.commissionPercentage, 8);
+});
+
+test('does not accept official product data with a different ID', async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input) === 'https://s.shopee.com.br/example') {
+      return new Response(null, { status: 302, headers: { location: 'https://shopee.com.br/product/123/456' } });
+    }
+    return new Response('<html><body>Product page without metadata</body></html>', { headers: { 'content-type': 'text/html' } });
+  };
+
+  await assert.rejects(
+    resolveShopeeAffiliateUrl(
+      'https://s.shopee.com.br/example',
+      async () => ({
+        productUrl: 'https://shopee.com.br/product/123/999',
+        externalProductId: '999',
+        name: 'Fone Bluetooth teste',
+        description: 'Fone para teste',
+        imageUrl: 'https://down-br.img.susercontent.com/fone.png',
+        price: 49.9,
+      }),
+      fetcher,
+    ),
+    /A API oficial não confirmou o mesmo ID de produto/,
   );
 });

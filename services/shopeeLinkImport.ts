@@ -10,7 +10,11 @@ export type ShopeeProductMetadata = {
   imageUrl: string;
   price: number;
   oldPrice?: number;
+  commissionPercentage?: number;
 };
+
+export type ShopeeApiProduct = Omit<ShopeeProductMetadata, 'affiliateUrl'>;
+export type ShopeeProductLookup = (externalProductId: string) => Promise<ShopeeApiProduct | null>;
 
 function isAllowedShopeeUrl(value: URL) {
   return value.protocol === 'https:' && ALLOWED_HOSTS.has(value.hostname.toLowerCase());
@@ -86,6 +90,11 @@ function getJsonLdProduct(html: string) {
   return undefined;
 }
 
+function getExternalProductId(productUrl: string) {
+  const productPath = new URL(productUrl).pathname;
+  return productPath.match(/\/product\/\d+\/(\d+)/i)?.[1] || productPath.match(/\/i\.\d+\.(\d+)/i)?.[1];
+}
+
 export async function parseShopeeProductPage(html: string, productUrl: string, affiliateUrl: string): Promise<ShopeeProductMetadata> {
   const metadata = new Map<string, string>();
   const tags = html.match(/<meta\b[^>]*>/gi) || [];
@@ -111,9 +120,7 @@ export async function parseShopeeProductPage(html: string, productUrl: string, a
     throw new Error('A página da Shopee não forneceu nome, imagem HTTPS e preço verificáveis.');
   }
 
-  const productPath = new URL(productUrl).pathname;
-  const itemMatch = productPath.match(/\/product\/\d+\/(\d+)/i) || productPath.match(/\/i\.\d+\.(\d+)/i);
-  let externalProductId = itemMatch?.[1];
+  let externalProductId = getExternalProductId(productUrl);
   if (!externalProductId) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(productUrl));
     externalProductId = Array.from(new Uint8Array(digest)).slice(0, 12).map((byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -131,7 +138,11 @@ export async function parseShopeeProductPage(html: string, productUrl: string, a
   };
 }
 
-export async function resolveShopeeAffiliateUrl(affiliateUrl: string): Promise<ShopeeProductMetadata> {
+export async function resolveShopeeAffiliateUrl(
+  affiliateUrl: string,
+  lookupProduct?: ShopeeProductLookup,
+  fetcher: typeof fetch = fetch,
+): Promise<ShopeeProductMetadata> {
   let currentUrl: URL;
   try {
     currentUrl = new URL(affiliateUrl);
@@ -142,7 +153,7 @@ export async function resolveShopeeAffiliateUrl(affiliateUrl: string): Promise<S
 
   let response: Response | undefined;
   for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
-    response = await fetch(currentUrl, {
+    response = await fetcher(currentUrl, {
       redirect: 'manual',
       headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'Mozilla/5.0 (compatible; VendaSemEstoque/1.0)' },
     });
@@ -160,5 +171,28 @@ export async function resolveShopeeAffiliateUrl(affiliateUrl: string): Promise<S
 
   const html = await response.text();
   if (html.length > 5_000_000) throw new Error('A página retornada pela Shopee excedeu o limite de leitura.');
-  return parseShopeeProductPage(html, currentUrl.toString(), affiliateUrl);
+  try {
+    return await parseShopeeProductPage(html, currentUrl.toString(), affiliateUrl);
+  } catch (pageError) {
+    const externalProductId = getExternalProductId(currentUrl.toString());
+    if (!externalProductId || !lookupProduct) throw pageError;
+
+    try {
+      const product = await lookupProduct(externalProductId);
+      if (
+        product?.externalProductId === externalProductId &&
+        product.name.length >= 5 &&
+        product.imageUrl.startsWith('https://') &&
+        Number.isFinite(product.price) &&
+        product.price > 0
+      ) {
+        return { ...product, affiliateUrl };
+      }
+      throw new Error('A API oficial não confirmou o mesmo ID de produto.');
+    } catch (apiError) {
+      const apiMessage = apiError instanceof Error ? apiError.message : 'Falha na consulta oficial.';
+      const pageMessage = pageError instanceof Error ? pageError.message : 'Metadados públicos indisponíveis.';
+      throw new Error(`${pageMessage} Consulta oficial: ${apiMessage}`);
+    }
+  }
 }

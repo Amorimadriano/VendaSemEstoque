@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { ShopeeIntegration } from '@/integrations/shopee/ShopeeIntegration';
 import { inferCategory } from '@/services/productCategory';
 import { resolveShopeeAffiliateUrl } from '@/services/shopeeLinkImport';
 
@@ -38,10 +39,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: marketplaceError?.message || 'Não foi possível preparar a Shopee.' }, { status: 500 });
   }
 
+  const shopeeIntegration = new ShopeeIntegration();
   const results = [];
   for (const affiliateUrl of urls) {
     try {
-      const item = await resolveShopeeAffiliateUrl(affiliateUrl);
+      const item = await resolveShopeeAffiliateUrl(affiliateUrl, async (externalProductId) => {
+        const candidates = await shopeeIntegration.getProducts(externalProductId, undefined, 50);
+        const product = candidates.find((candidate) => candidate.externalProductId === externalProductId);
+        if (!product?.originalUrl) return null;
+        return {
+          productUrl: product.originalUrl,
+          externalProductId: product.externalProductId,
+          name: product.name,
+          description: product.description,
+          imageUrl: product.imageUrl,
+          price: product.price,
+          oldPrice: product.oldPrice,
+          commissionPercentage: product.commissionPercentage,
+        };
+      });
       const inferredCategory = inferCategory(item.name, 'Shopee');
       const { data: existingCategory, error: existingCategoryError } = await supabase
         .from('categories')
@@ -65,7 +81,7 @@ export async function POST(request: Request) {
         .maybeSingle();
       if (currentProductError) throw currentProductError;
 
-      const commissionPercentage = Number(process.env.SHOPEE_DEFAULT_COMMISSION_PERCENTAGE) || 10;
+      const commissionPercentage = item.commissionPercentage || Number(process.env.SHOPEE_DEFAULT_COMMISSION_PERCENTAGE) || 10;
       const discountPercentage = item.oldPrice ? Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100) : null;
       const productId = currentProduct?.id || crypto.randomUUID();
       const productData = {
