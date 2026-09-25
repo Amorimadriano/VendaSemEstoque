@@ -207,7 +207,7 @@ const fetchData = async () => {
   };
 
   const handleShopeeImport = async () => {
-    const lines = shopeeImportUrls.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const lines = shopeeImportUrls.split(/[;\r\n]+/).map((line) => line.trim()).filter(Boolean);
     if (!lines.length) return;
     if (lines.length % 2 !== 0) {
       alert('Cole dois links por produto: primeiro o link afiliado, depois o link direto do produto.');
