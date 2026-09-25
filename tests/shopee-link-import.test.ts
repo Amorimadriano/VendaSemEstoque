@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseShopeeProductPage, resolveShopeeAffiliateUrl } from '../services/shopeeLinkImport';
+import { fetchShopeeProductDetails, parseShopeeProductPage, resolveShopeeAffiliateUrl } from '../services/shopeeLinkImport';
 
 test('extracts product details from Shopee Open Graph metadata', async () => {
   const html = '<html><head><meta content="Produto de teste | Shopee Brasil" property="og:title"><meta property="og:image" content="https://down-br.img.susercontent.com/image.png"><meta property="product:price:amount" content="1.234,56"></head></html>';
@@ -155,6 +155,32 @@ test('uses a supplied direct product URL without resolving the affiliate short l
   assert.equal(product.externalProductId, '23994392192');
   assert.equal(product.affiliateUrl, affiliateUrl);
   assert.equal(product.productUrl, productUrl);
+});
+
+test('maps Shopee direct item details, scaled prices, and image IDs', async () => {
+  const product = await fetchShopeeProductDetails(
+    '1475933346',
+    '23994392192',
+    'https://shopee.com.br/product/1475933346/23994392192',
+    async () => new Response(JSON.stringify({
+      data: {
+        item: {
+          shop_id: 1475933346,
+          item_id: 23994392192,
+          name: 'Produto direto Shopee',
+          description: 'Detalhe de teste',
+          price: 9990000,
+          original_price: 19990000,
+          images: ['sample-image-id'],
+        },
+      },
+    }), { headers: { 'content-type': 'application/json' } }),
+  );
+
+  assert.equal(product.externalProductId, '23994392192');
+  assert.equal(product.price, 99.9);
+  assert.equal(product.oldPrice, 199.9);
+  assert.equal(product.imageUrl, 'https://down-br.img.susercontent.com/file/sample-image-id');
 });
 
 test('explains when the redirect and product page do not expose an item ID', async () => {

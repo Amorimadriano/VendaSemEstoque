@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { ShopeeIntegration } from '@/integrations/shopee/ShopeeIntegration';
 import { inferCategory } from '@/services/productCategory';
-import { resolveShopeeAffiliateUrl } from '@/services/shopeeLinkImport';
+import { fetchShopeeProductDetails, getShopeeProductIdentifiers, resolveShopeeAffiliateUrl } from '@/services/shopeeLinkImport';
 
 export const runtime = 'edge';
 
@@ -59,17 +59,23 @@ export async function POST(request: Request) {
       const item = await resolveShopeeAffiliateUrl(affiliateUrl, async (externalProductId) => {
         const candidates = await shopeeIntegration.getProducts(externalProductId, undefined, 50);
         const product = candidates.find((candidate) => candidate.externalProductId === externalProductId);
-        if (!product?.originalUrl) return null;
-        return {
-          productUrl: product.originalUrl,
-          externalProductId: product.externalProductId,
-          name: product.name,
-          description: product.description,
-          imageUrl: product.imageUrl,
-          price: product.price,
-          oldPrice: product.oldPrice,
-          commissionPercentage: product.commissionPercentage,
-        };
+        if (product?.originalUrl) {
+          return {
+            productUrl: product.originalUrl,
+            externalProductId: product.externalProductId,
+            name: product.name,
+            description: product.description,
+            imageUrl: product.imageUrl,
+            price: product.price,
+            oldPrice: product.oldPrice,
+            commissionPercentage: product.commissionPercentage,
+          };
+        }
+
+        if (!productUrl) return null;
+        const identifiers = getShopeeProductIdentifiers(productUrl);
+        if (!identifiers) return null;
+        return fetchShopeeProductDetails(identifiers.shopId, identifiers.itemId, productUrl);
       }, undefined, productUrl);
       const inferredCategory = inferCategory(item.name, 'Shopee');
       const { data: existingCategory, error: existingCategoryError } = await supabase

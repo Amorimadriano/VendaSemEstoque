@@ -16,6 +16,19 @@ export type ShopeeProductMetadata = {
 export type ShopeeApiProduct = Omit<ShopeeProductMetadata, 'affiliateUrl'>;
 export type ShopeeProductLookup = (externalProductId: string) => Promise<ShopeeApiProduct | null>;
 
+type ShopeeItemResponse = {
+  item_id?: string | number;
+  shop_id?: string | number;
+  name?: string;
+  description?: string;
+  price?: string | number;
+  price_min?: string | number;
+  price_max?: string | number;
+  original_price?: string | number;
+  image?: string;
+  images?: string[];
+};
+
 function isAllowedShopeeUrl(value: URL) {
   return value.protocol === 'https:' && ALLOWED_HOSTS.has(value.hostname.toLowerCase());
 }
@@ -257,4 +270,80 @@ export async function resolveShopeeAffiliateUrl(
       throw new Error(`${pageMessage} Consulta oficial: ${apiMessage}`);
     }
   }
+}
+
+export function getShopeeProductIdentifiers(productUrl: string) {
+  try {
+    const pathname = new URL(productUrl).pathname;
+    const match = pathname.match(/\/product\/(\d+)\/(\d+)/i) || pathname.match(/i\.(\d+)\.(\d+)/i);
+    return match ? { shopId: match[1], itemId: match[2] } : null;
+  } catch {
+    return null;
+  }
+}
+
+function findShopeeItem(payload: unknown): ShopeeItemResponse | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const root = payload as Record<string, unknown>;
+  const data = root.data && typeof root.data === 'object' ? root.data as Record<string, unknown> : root;
+  const item = data.item || data.item_model || data.item_data;
+  if (!item || typeof item !== 'object') return null;
+  const candidate = item as ShopeeItemResponse;
+  return candidate.item_id != null ? candidate : null;
+}
+
+function parseShopeeItemPrice(value: string | number | undefined) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return undefined;
+  return numeric > 15_000 ? numeric / 100_000 : numeric;
+}
+
+export async function fetchShopeeProductDetails(
+  shopId: string,
+  itemId: string,
+  productUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ShopeeApiProduct> {
+  if (!/^\d+$/.test(shopId) || !/^\d+$/.test(itemId)) throw new Error('IDs de produto Shopee inválidos.');
+
+  const endpoints = [
+    `https://shopee.com.br/api/v4/pdp/get_pc?shop_id=${shopId}&item_id=${itemId}`,
+    `https://shopee.com.br/api/v4/item/get?shopid=${shopId}&itemid=${itemId}`,
+  ];
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetcher(endpoint, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0 (compatible; VendaSemEstoque/1.0)',
+          Referer: productUrl,
+        },
+      });
+      if (!response.ok) continue;
+
+      const item = findShopeeItem(await response.json());
+      if (!item || String(item.item_id) !== itemId || (item.shop_id != null && String(item.shop_id) !== shopId)) continue;
+
+      const name = String(item.name || '').trim();
+      const price = parseShopeeItemPrice(item.price_min ?? item.price ?? item.price_max);
+      const oldPrice = parseShopeeItemPrice(item.original_price);
+      const image = item.images?.[0] || item.image || '';
+      const imageUrl = image.startsWith('http') ? image : image ? `https://down-br.img.susercontent.com/file/${image}` : '';
+      if (name.length < 5 || !price || !imageUrl.startsWith('https://')) continue;
+
+      return {
+        productUrl,
+        externalProductId: itemId,
+        name,
+        description: String(item.description || name).trim(),
+        imageUrl,
+        price,
+        oldPrice,
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error('A API pública da Shopee não retornou detalhes válidos para este shopId/itemId.');
 }
