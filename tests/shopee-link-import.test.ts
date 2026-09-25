@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { ShopeeIntegration } from '../integrations/shopee/ShopeeIntegration';
 import { fetchShopeeProductDetails, parseShopeeProductPage, resolveShopeeAffiliateUrl } from '../services/shopeeLinkImport';
 
 test('extracts product details from Shopee Open Graph metadata', async () => {
@@ -181,6 +182,46 @@ test('maps Shopee direct item details, scaled prices, and image IDs', async () =
   assert.equal(product.price, 99.9);
   assert.equal(product.oldPrice, 199.9);
   assert.equal(product.imageUrl, 'https://down-br.img.susercontent.com/file/sample-image-id');
+});
+
+test('queries the official affiliate API using exact shopId and itemId filters', async (t) => {
+  const previousAppId = process.env.SHOPEE_APP_ID;
+  const previousSecret = process.env.SHOPEE_SECRET;
+  process.env.SHOPEE_APP_ID = 'test-app-id';
+  process.env.SHOPEE_SECRET = 'test-secret';
+  t.after(() => {
+    if (previousAppId === undefined) delete process.env.SHOPEE_APP_ID;
+    else process.env.SHOPEE_APP_ID = previousAppId;
+    if (previousSecret === undefined) delete process.env.SHOPEE_SECRET;
+    else process.env.SHOPEE_SECRET = previousSecret;
+  });
+
+  const integration = new ShopeeIntegration();
+  const product = await integration.getProductByIds('1475933346', '23994392192', async (_input, init) => {
+    const requestBody = JSON.parse(String(init?.body));
+    assert.match(requestBody.query, /productOfferV2\(shopId: 1475933346, itemId: 23994392192/);
+    return new Response(JSON.stringify({
+      data: {
+        productOfferV2: {
+          nodes: [{
+            shopId: 1475933346,
+            itemId: 23994392192,
+            productName: 'Produto por IDs Shopee',
+            price: 99.9,
+            imageUrl: 'https://down-br.img.susercontent.com/product.png',
+            productLink: 'https://shopee.com.br/product/1475933346/23994392192',
+            offerLink: 'https://s.shopee.com.br/affiliate',
+            commissionRate: 10,
+            sales: 5,
+            ratingStar: 4.8,
+          }],
+        },
+      },
+    }), { headers: { 'content-type': 'application/json' } });
+  });
+
+  assert.equal(product?.externalProductId, '23994392192');
+  assert.equal(product?.name, 'Produto por IDs Shopee');
 });
 
 test('explains when the redirect and product page do not expose an item ID', async () => {

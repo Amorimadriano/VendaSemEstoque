@@ -3,6 +3,7 @@ import { ExternalProduct } from '../../types';
 
 type ShopeeNode = {
   itemId?: string | number;
+  shopId?: string | number;
   productName?: string;
   price?: number;
   priceMin?: number;
@@ -401,6 +402,55 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     }
 
     return this.getCuratedShopeeFallback(query, category, safeLimit);
+  }
+
+  async getProductByIds(shopId: string, itemId: string, fetcher: typeof fetch = fetch): Promise<ExternalProduct | null> {
+    if (!/^\d+$/.test(shopId) || !/^\d+$/.test(itemId)) return null;
+    if (!this.hasCredentials()) return null;
+
+    const gqlQuery = `
+      query {
+        productOfferV2(shopId: ${shopId}, itemId: ${itemId}, page: 1, limit: 20) {
+          nodes {
+            itemId
+            shopId
+            productName
+            price
+            priceMin
+            priceMax
+            imageUrl
+            productLink
+            offerLink
+            commissionRate
+            sales
+            ratingStar
+          }
+        }
+      }
+    `;
+    const payload = JSON.stringify({ query: gqlQuery });
+    const response = await fetcher('https://open-api.affiliate.shopee.com.br/graphql', {
+      method: 'POST',
+      headers: await this.generateAuthHeaders(payload),
+      body: payload,
+    });
+    const responseText = await response.text();
+    if (!responseText.trim().startsWith('{')) {
+      throw new Error(`Shopee Affiliate API retornou uma resposta não JSON (HTTP ${response.status}).`);
+    }
+
+    const result = JSON.parse(responseText) as {
+      data?: { productOfferV2?: { nodes?: ShopeeNode[] } };
+      errors?: Array<{ message?: string }>;
+    };
+    if (!response.ok || result.errors?.length) {
+      throw new Error(result.errors?.[0]?.message || `Shopee Affiliate API retornou HTTP ${response.status}.`);
+    }
+
+    const node = (result.data?.productOfferV2?.nodes || []).find(
+      (candidate) => String(candidate.shopId || '') === shopId && String(candidate.itemId || '') === itemId,
+    );
+    return node ? this.convertNode(node) : null;
   }
 
   async verifyProduct(externalId: string): Promise<ProductVerificationResult> {

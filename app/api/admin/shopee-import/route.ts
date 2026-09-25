@@ -57,6 +57,25 @@ export async function POST(request: Request) {
     const { affiliateUrl, productUrl } = entry;
     try {
       const item = await resolveShopeeAffiliateUrl(affiliateUrl, async (externalProductId) => {
+        if (productUrl) {
+          const identifiers = getShopeeProductIdentifiers(productUrl);
+          if (identifiers) {
+            const exactProduct = await shopeeIntegration.getProductByIds(identifiers.shopId, identifiers.itemId);
+            if (exactProduct?.externalProductId === externalProductId && exactProduct.originalUrl) {
+              return {
+                productUrl: exactProduct.originalUrl,
+                externalProductId: exactProduct.externalProductId,
+                name: exactProduct.name,
+                description: exactProduct.description,
+                imageUrl: exactProduct.imageUrl,
+                price: exactProduct.price,
+                oldPrice: exactProduct.oldPrice,
+                commissionPercentage: exactProduct.commissionPercentage,
+              };
+            }
+          }
+        }
+
         const candidates = await shopeeIntegration.getProducts(externalProductId, undefined, 50);
         const product = candidates.find((candidate) => candidate.externalProductId === externalProductId);
         if (product?.originalUrl) {
