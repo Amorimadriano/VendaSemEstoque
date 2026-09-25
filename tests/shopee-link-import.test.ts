@@ -79,3 +79,41 @@ test('does not accept official product data with a different ID', async () => {
     /A API oficial não confirmou o mesmo ID de produto/,
   );
 });
+
+test('finds the product ID in og:url when the redirect path is generic', async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input) === 'https://s.shopee.com.br/example') {
+      return new Response(null, { status: 302, headers: { location: 'https://shopee.com.br/redirect' } });
+    }
+    return new Response('<meta property="og:url" content="https://shopee.com.br/product/123/456">', { headers: { 'content-type': 'text/html' } });
+  };
+  const product = await resolveShopeeAffiliateUrl(
+    'https://s.shopee.com.br/example',
+    async (externalProductId) => ({
+      productUrl: 'https://shopee.com.br/product/123/456',
+      externalProductId,
+      name: 'Fone Bluetooth teste',
+      description: 'Fone para teste',
+      imageUrl: 'https://down-br.img.susercontent.com/fone.png',
+      price: 49.9,
+    }),
+    fetcher,
+  );
+
+  assert.equal(product.externalProductId, '456');
+  assert.equal(product.productUrl, 'https://shopee.com.br/product/123/456');
+});
+
+test('explains when the redirect and product page do not expose an item ID', async () => {
+  const fetcher: typeof fetch = async (input) => {
+    if (String(input) === 'https://s.shopee.com.br/example') {
+      return new Response(null, { status: 302, headers: { location: 'https://shopee.com.br/redirect' } });
+    }
+    return new Response('<html><body>Product page without metadata</body></html>', { headers: { 'content-type': 'text/html' } });
+  };
+
+  await assert.rejects(
+    resolveShopeeAffiliateUrl('https://s.shopee.com.br/example', async () => null, fetcher),
+    /Não foi possível localizar o ID do produto no destino do link/,
+  );
+});

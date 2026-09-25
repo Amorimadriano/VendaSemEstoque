@@ -95,7 +95,37 @@ function getExternalProductId(productUrl: string) {
   return productPath.match(/\/product\/\d+\/(\d+)/i)?.[1] || productPath.match(/\/i\.\d+\.(\d+)/i)?.[1];
 }
 
+function getCanonicalProductUrl(html: string, fallbackUrl: string) {
+  const candidates: string[] = [];
+  const metaTags = html.match(/<meta\b[^>]*>/gi) || [];
+  for (const tag of metaTags) {
+    const attributes = readAttributes(tag);
+    if (attributes.get('property')?.toLowerCase() === 'og:url' && attributes.get('content')) {
+      candidates.push(attributes.get('content')!);
+    }
+  }
+
+  const linkTags = html.match(/<link\b[^>]*>/gi) || [];
+  for (const tag of linkTags) {
+    const attributes = readAttributes(tag);
+    if (attributes.get('rel')?.toLowerCase().split(/\s+/).includes('canonical') && attributes.get('href')) {
+      candidates.push(attributes.get('href')!);
+    }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const url = new URL(candidate, fallbackUrl);
+      if (isAllowedShopeeUrl(url) && getExternalProductId(url.toString())) return url.toString();
+    } catch {
+      continue;
+    }
+  }
+  return fallbackUrl;
+}
+
 export async function parseShopeeProductPage(html: string, productUrl: string, affiliateUrl: string): Promise<ShopeeProductMetadata> {
+  const canonicalProductUrl = getCanonicalProductUrl(html, productUrl);
   const metadata = new Map<string, string>();
   const tags = html.match(/<meta\b[^>]*>/gi) || [];
   for (const tag of tags) {
@@ -120,7 +150,7 @@ export async function parseShopeeProductPage(html: string, productUrl: string, a
     throw new Error('A página da Shopee não forneceu nome, imagem HTTPS e preço verificáveis.');
   }
 
-  let externalProductId = getExternalProductId(productUrl);
+  let externalProductId = getExternalProductId(canonicalProductUrl);
   if (!externalProductId) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(productUrl));
     externalProductId = Array.from(new Uint8Array(digest)).slice(0, 12).map((byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -128,7 +158,7 @@ export async function parseShopeeProductPage(html: string, productUrl: string, a
 
   return {
     affiliateUrl,
-    productUrl,
+    productUrl: canonicalProductUrl,
     externalProductId,
     name,
     description,
@@ -174,8 +204,13 @@ export async function resolveShopeeAffiliateUrl(
   try {
     return await parseShopeeProductPage(html, currentUrl.toString(), affiliateUrl);
   } catch (pageError) {
-    const externalProductId = getExternalProductId(currentUrl.toString());
-    if (!externalProductId || !lookupProduct) throw pageError;
+    const productUrl = getCanonicalProductUrl(html, currentUrl.toString());
+    const externalProductId = getExternalProductId(productUrl);
+    if (!externalProductId) {
+      const pageMessage = pageError instanceof Error ? pageError.message : 'Metadados públicos indisponíveis.';
+      throw new Error(`${pageMessage} Não foi possível localizar o ID do produto no destino do link.`);
+    }
+    if (!lookupProduct) throw pageError;
 
     try {
       const product = await lookupProduct(externalProductId);
@@ -186,7 +221,7 @@ export async function resolveShopeeAffiliateUrl(
         Number.isFinite(product.price) &&
         product.price > 0
       ) {
-        return { ...product, affiliateUrl };
+        return { ...product, productUrl: product.productUrl || productUrl, affiliateUrl };
       }
       throw new Error('A API oficial não confirmou o mesmo ID de produto.');
     } catch (apiError) {
