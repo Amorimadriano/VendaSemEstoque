@@ -477,7 +477,7 @@ export class ShopeeIntegration implements MarketplaceIntegration {
       return { status: 'ERROR', reason: `Falha na API da Shopee: ${err?.message || err}` };
     }
 
-    return { status: 'NOT_FOUND', reason: 'Produto Shopee não encontrado ou inativo' };
+    return { status: 'ERROR', reason: 'A busca por palavra-chave não confirmou se o produto Shopee continua ativo' };
   }
 
   async getProduct(externalId: string): Promise<ExternalProduct | null> {

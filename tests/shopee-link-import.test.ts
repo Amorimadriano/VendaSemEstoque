@@ -224,6 +224,26 @@ test('queries the official affiliate API using exact shopId and itemId filters',
   assert.equal(product?.name, 'Produto por IDs Shopee');
 });
 
+test('does not mark a product unavailable when keyword search cannot confirm its ID', async (t) => {
+  const previousAppId = process.env.SHOPEE_APP_ID;
+  const previousSecret = process.env.SHOPEE_SECRET;
+  process.env.SHOPEE_APP_ID = 'test-app-id';
+  process.env.SHOPEE_SECRET = 'test-secret';
+  t.after(() => {
+    if (previousAppId === undefined) delete process.env.SHOPEE_APP_ID;
+    else process.env.SHOPEE_APP_ID = previousAppId;
+    if (previousSecret === undefined) delete process.env.SHOPEE_SECRET;
+    else process.env.SHOPEE_SECRET = previousSecret;
+  });
+
+  const integration = new ShopeeIntegration();
+  integration.getProducts = async () => [];
+
+  const result = await integration.verifyProduct('23994392192');
+
+  assert.equal(result.status, 'ERROR');
+});
+
 test('explains when the redirect and product page do not expose an item ID', async () => {
   const fetcher: typeof fetch = async (input) => {
     if (String(input) === 'https://s.shopee.com.br/example') {
