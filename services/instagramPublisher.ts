@@ -11,6 +11,29 @@ export function canPublishWithinInstagramQuota(limit: InstagramPublishingLimit, 
   return limit.remaining > Math.max(1, reserve);
 }
 
+export async function waitForInstagramMediaContainer(
+  containerId: string,
+  token: string,
+  fetcher: typeof fetch = fetch,
+  wait: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const statusUrl = new URL(`https://graph.facebook.com/v26.0/${containerId}`);
+    statusUrl.searchParams.set('fields', 'status_code,status');
+    statusUrl.searchParams.set('access_token', token);
+    const response = await fetcher(statusUrl);
+    const result = await response.json() as { status_code?: string; status?: string; error?: { message?: string } };
+    if (!response.ok) throw new Error(result.error?.message || `Meta API retornou ${response.status} ao consultar a mídia.`);
+
+    const status = String(result.status_code || result.status || '').toUpperCase();
+    if (status === 'FINISHED') return;
+    if (status === 'ERROR' || status === 'EXPIRED') throw new Error(`O Instagram não concluiu o processamento da mídia: ${result.status || status}.`);
+    if (attempt < 9) await wait(2000);
+  }
+
+  throw new Error('O Instagram ainda está processando a mídia; tente publicar novamente em instantes.');
+}
+
 export async function getInstagramPublishingLimit(): Promise<InstagramPublishingLimit> {
   const token = process.env.META_ACCESS_TOKEN;
   const instagramAccountId = process.env.META_INSTAGRAM_ACCOUNT_ID;
@@ -178,6 +201,7 @@ export async function publishApprovedInstagramContent(contentId: string) {
   }
 
   const containerId = createResult.id;
+  await waitForInstagramMediaContainer(containerId, token);
 
   // ETAPA 2: Publicação efetiva do container criado
   const publishBody = new URLSearchParams({
