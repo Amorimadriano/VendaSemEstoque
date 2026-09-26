@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ShopeeIntegration } from '../integrations/shopee/ShopeeIntegration';
 import { fetchShopeeProductDetails, parseShopeeProductPage, resolveShopeeAffiliateUrl } from '../services/shopeeLinkImport';
+import { isMarketplaceProtectedFromAutomaticDeletion } from '../services/productPartnerVerifierAgent';
 
 test('extracts product details from Shopee Open Graph metadata', async () => {
   const html = '<html><head><meta content="Produto de teste | Shopee Brasil" property="og:title"><meta property="og:image" content="https://down-br.img.susercontent.com/image.png"><meta property="product:price:amount" content="1.234,56"></head></html>';
@@ -242,6 +243,11 @@ test('does not mark a product unavailable when keyword search cannot confirm its
   const result = await integration.verifyProduct('23994392192');
 
   assert.equal(result.status, 'ERROR');
+});
+
+test('protects Shopee products from automatic deletion', () => {
+  assert.equal(isMarketplaceProtectedFromAutomaticDeletion('shopee'), true);
+  assert.equal(isMarketplaceProtectedFromAutomaticDeletion('amazon'), false);
 });
 
 test('explains when the redirect and product page do not expose an item ID', async () => {

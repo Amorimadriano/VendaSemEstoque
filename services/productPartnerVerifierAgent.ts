@@ -30,6 +30,10 @@ function isOfficialShopeeAffiliateUrl(value?: string | null): boolean {
   }
 }
 
+export function isMarketplaceProtectedFromAutomaticDeletion(marketplaceSlug?: string | null): boolean {
+  return marketplaceSlug === 'shopee';
+}
+
 /**
  * Remove com segurança um produto do banco de dados, excluindo
  * em cascata todas as dependências em tabelas filhas.
@@ -38,6 +42,17 @@ export async function deleteProductSafely(productId: string): Promise<boolean> {
   const supabase = getSupabase();
 
   try {
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('marketplace:marketplaces(slug)')
+      .eq('id', productId)
+      .maybeSingle();
+    if (productError) throw productError;
+    if (isMarketplaceProtectedFromAutomaticDeletion((product as any)?.marketplace?.slug)) {
+      console.warn(`[VerifierAgent] Exclusão automática bloqueada para produto Shopee ${productId}.`);
+      return false;
+    }
+
     // 1. Obter IDs de marketing_content para limpar vídeos vinculados
     const { data: contents } = await supabase
       .from('marketing_content')

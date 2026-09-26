@@ -373,12 +373,12 @@ export async function runProductDiscovery(marketplaces: string[] = MARKETPLACES)
               const check = await (integration as any).verifyProduct(product.external_product_id);
               // IMPORTANTE: Só marca OUT_OF_STOCK se o produto for expressamente confirmado como inexistente/inativo ('NOT_FOUND').
               // Se o status for 'ERROR' (500, 429, timeout), NÃO altera para OUT_OF_STOCK.
-              if (check.status === 'NOT_FOUND') {
+              if (marketplaceSlug !== 'shopee' && check.status === 'NOT_FOUND') {
                 await supabase.from('products').update({ status: 'OUT_OF_STOCK', last_synced_at: new Date().toISOString() }).eq('id', product.id);
               }
             } else {
               const available = await integration.getAvailability(product.external_product_id);
-              if (available === false) {
+              if (marketplaceSlug !== 'shopee' && available === false) {
                 await supabase.from('products').update({ status: 'OUT_OF_STOCK', last_synced_at: new Date().toISOString() }).eq('id', product.id);
               }
             }

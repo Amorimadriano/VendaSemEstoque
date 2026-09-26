@@ -39,7 +39,7 @@ export async function runAffiliateHealthCheck(batchSize = 25): Promise<HealthChe
       
       if (typeof (integration as any).verifyProduct === 'function') {
         const result = await (integration as any).verifyProduct(product.external_product_id);
-        if (result.status === 'NOT_FOUND') {
+        if (marketplaceSlug !== 'shopee' && result.status === 'NOT_FOUND') {
           await supabase
             .from('products')
             .update({ status: 'OUT_OF_STOCK', last_synced_at: new Date().toISOString() })
