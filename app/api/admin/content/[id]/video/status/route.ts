@@ -33,9 +33,11 @@ export async function POST(
     const ready = ['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(String(video.status || '').toUpperCase());
     if (ready && video.video_url) return NextResponse.json({ status: video.status, videoUrl: video.video_url }, { status: 200 });
 
-    const message = video.provider_render_id?.startsWith('heygen:')
-      ? 'O avatar está sendo gerado; aguarde o processamento do FFmpeg.'
-      : 'O vídeo ainda está sendo preparado.';
+    const message = video.provider_render_id?.startsWith('dispatch:')
+      ? String(video.status).toUpperCase() === 'QUEUED'
+        ? 'O Reel está aguardando o runner do GitHub Actions.'
+        : 'O runner do GitHub Actions iniciou o HeyGen; FFmpeg comporá o Reel em seguida.'
+      : 'O avatar está sendo gerado; o FFmpeg ainda vai compor o Reel.';
     return NextResponse.json({ status: video.status || 'RENDERING', error: message }, { status: 409 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar status do vídeo.' }, { status: 500 });

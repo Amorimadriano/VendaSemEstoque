@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { buildAvatarScript, createHeyGenAvatarVideo } from '@/services/heygenAvatarVideo';
 
 export const runtime = 'edge';
 
@@ -23,13 +22,9 @@ export async function POST(
       return NextResponse.json({ error: 'Aprove um Reel do Instagram ou Facebook antes de gerar o avatar.' }, { status: 409 });
     }
 
-    const apiKey = process.env.HEYGEN_API_KEY;
-    const avatarId = process.env.HEYGEN_TALKING_PHOTO_ID || process.env.HEYGEN_AVATAR_ID;
-    const configuredCharacterType = process.env.HEYGEN_CHARACTER_TYPE || 'talking_photo';
-    const voiceId = process.env.HEYGEN_VOICE_ID;
     const githubToken = process.env.GITHUB_ACTIONS_TOKEN;
-    if (!apiKey || !avatarId || !voiceId || !githubToken || !['avatar', 'talking_photo'].includes(configuredCharacterType)) {
-      return NextResponse.json({ error: 'Configure HEYGEN_API_KEY, HEYGEN_AVATAR_ID (ou HEYGEN_TALKING_PHOTO_ID), HEYGEN_VOICE_ID, GITHUB_ACTIONS_TOKEN e HEYGEN_CHARACTER_TYPE válido no Cloudflare Pages.' }, { status: 503 });
+    if (!githubToken) {
+      return NextResponse.json({ error: 'Configure GITHUB_ACTIONS_TOKEN no Cloudflare Pages para iniciar o worker de render.' }, { status: 503 });
     }
 
     const { data: existingVideo, error: existingError } = await supabase
@@ -41,6 +36,9 @@ export async function POST(
       .maybeSingle();
 
     if (existingError) throw existingError;
+    if (existingVideo?.provider_render_id?.startsWith('dispatch:') && ['QUEUED', 'RENDERING'].includes(String(existingVideo.status).toUpperCase())) {
+      return NextResponse.json({ status: existingVideo.status, message: 'O Reel já está na fila do worker de vídeo.' }, { status: 202 });
+    }
     if (existingVideo?.provider_render_id?.startsWith('heygen:')) {
       if (existingVideo.status === 'RENDERING') {
         return NextResponse.json({ status: 'RENDERING', message: 'O avatar já está sendo gerado.' }, { status: 202 });
@@ -50,30 +48,17 @@ export async function POST(
       }
     }
 
-    const product = content.product as { name?: string } | null;
-    const script = buildAvatarScript({
-      script: content.script,
-      hook: content.hook,
-      caption: content.caption,
-      cta: content.cta,
-      productName: product?.name || 'este produto',
-    });
-    const heygenVideoId = await createHeyGenAvatarVideo({
-      apiKey,
-      avatarId,
-      characterType: configuredCharacterType as 'avatar' | 'talking_photo',
-      voiceId,
-      script,
-    });
+    const dispatchRecordId = crypto.randomUUID();
+    const now = new Date().toISOString();
     const { error: insertError } = await supabase.from('marketing_videos').insert({
-      id: crypto.randomUUID(),
+      id: dispatchRecordId,
       content_id: id,
-      provider_render_id: `heygen:${heygenVideoId}`,
-      status: 'RENDERING',
+      provider_render_id: `dispatch:${dispatchRecordId}`,
+      status: 'QUEUED',
       video_url: null,
       error: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     });
     if (insertError) throw insertError;
 
@@ -86,21 +71,21 @@ export async function POST(
         'Content-Type': 'application/json',
         'X-GitHub-Api-Version': '2022-11-28',
       },
-      body: JSON.stringify({ ref: 'main', inputs: { content_id: id } }),
+      body: JSON.stringify({ ref: 'main', inputs: { content_id: id, video_record_id: dispatchRecordId } }),
     });
     if (!dispatchResponse.ok) {
       const { error: updateError } = await supabase.from('marketing_videos').update({
         status: 'FAILED',
-        error: `HeyGen iniciou o render, mas não foi possível iniciar o compositor FFmpeg (GitHub HTTP ${dispatchResponse.status}).`,
+        error: `O GitHub Actions não aceitou a fila (HTTP ${dispatchResponse.status}). Nenhum render HeyGen foi iniciado.`,
         updated_at: new Date().toISOString(),
-      }).eq('provider_render_id', `heygen:${heygenVideoId}`);
+      }).eq('id', dispatchRecordId);
       if (updateError) console.error('[HeyGen] Não foi possível atualizar o status após falha no dispatch:', updateError.message);
-      return NextResponse.json({ error: 'O avatar foi solicitado, mas o compositor FFmpeg não iniciou. Verifique GITHUB_ACTIONS_TOKEN.' }, { status: 502 });
+      return NextResponse.json({ error: `O GitHub Actions recusou a fila (HTTP ${dispatchResponse.status}). Verifique GITHUB_ACTIONS_TOKEN com permissão Actions: Read and write. Nenhum crédito HeyGen foi consumido.` }, { status: 502 });
     }
 
     return NextResponse.json({
-      status: 'RENDERING',
-      message: 'Avatar enviado para geração. O FFmpeg finalizará o vídeo e o Reel ficará pronto para aprovação/publicação.',
+      status: 'QUEUED',
+      message: 'Reel enfileirado. O runner vai gerar o talking photo com HeyGen, compor com FFmpeg e salvar a prévia antes da publicação.',
     }, { status: 202 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao iniciar a geração do avatar.' }, { status: 502 });
