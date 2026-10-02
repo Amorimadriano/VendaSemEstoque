@@ -166,6 +166,11 @@ type AliExpressApiProduct = {
   promotion_link?: string;
 };
 
+function parseApiNumber(value: string | number | undefined, fallback = 0): number {
+  const parsed = Number(typeof value === 'string' ? value.trim().replace(/%$/, '') : value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export class AliExpressIntegration implements MarketplaceIntegration {
   marketplaceSlug = 'aliexpress';
   marketplaceName = 'AliExpress';
@@ -588,9 +593,11 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     if (!Number.isFinite(price) || price <= 0) return null;
 
     const discountPercentage = oldPrice && oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : undefined;
-    const commissionPercentage = Number(item.commission_rate || process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
-    const reviewCount = Number(item.lastest_volume || 0);
-    const rating = Number(item.evaluate_rate || 0);
+    const commissionFallback = parseApiNumber(process.env.ALIEXPRESS_COMMISSION_PERCENTAGE, 8);
+    const commissionPercentage = parseApiNumber(item.commission_rate, commissionFallback);
+    const reviewCount = parseApiNumber(item.lastest_volume);
+    const rawRating = parseApiNumber(item.evaluate_rate);
+    const rating = Math.max(0, Math.min(5, rawRating > 5 ? rawRating / 20 : rawRating));
     const affiliateUrl = item.promotion_link && item.promotion_link.startsWith('http')
       ? item.promotion_link
       : await this.createAffiliateLink(originalUrl);
