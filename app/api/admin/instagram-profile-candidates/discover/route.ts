@@ -13,7 +13,6 @@ type MetaGraphResponse = {
 async function getGraphData(url: URL, token: string): Promise<MetaGraphResponse> {
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
   });
   const result = await response.json().catch(() => ({})) as MetaGraphResponse;
   if (!response.ok) throw new Error(result.error?.message || `Meta Graph API retornou HTTP ${response.status}.`);
