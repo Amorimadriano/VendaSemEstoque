@@ -42,6 +42,27 @@ test('creates a portrait HeyGen render using the configured avatar and voice', a
   assert.deepEqual(body.dimension, { width: 1080, height: 1920 });
 });
 
+test('uses the talking photo ID field for a HeyGen talking photo', async () => {
+  let requestInit: RequestInit | undefined;
+  await createHeyGenAvatarVideo({
+    apiKey: 'test-key',
+    avatarId: 'talking-photo-123',
+    characterType: 'talking_photo',
+    voiceId: 'voice-456',
+    script: 'Conheça este produto.',
+    fetcher: async (_input, init) => {
+      requestInit = init;
+      return Response.json({ data: { video_id: 'render-789' } });
+    },
+  });
+
+  const body = JSON.parse(String(requestInit?.body));
+  assert.deepEqual(body.video_inputs[0].character, {
+    type: 'talking_photo',
+    talking_photo_id: 'talking-photo-123',
+  });
+});
+
 test('reads completed HeyGen renders and returns their video URL', async () => {
   const result = await getHeyGenAvatarVideoStatus({
     apiKey: 'test-key',

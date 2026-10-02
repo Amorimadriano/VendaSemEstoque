@@ -24,11 +24,12 @@ export async function POST(
     }
 
     const apiKey = process.env.HEYGEN_API_KEY;
-    const avatarId = process.env.HEYGEN_AVATAR_ID;
+    const avatarId = process.env.HEYGEN_TALKING_PHOTO_ID || process.env.HEYGEN_AVATAR_ID;
+    const configuredCharacterType = process.env.HEYGEN_CHARACTER_TYPE || 'talking_photo';
     const voiceId = process.env.HEYGEN_VOICE_ID;
     const githubToken = process.env.GITHUB_ACTIONS_TOKEN;
-    if (!apiKey || !avatarId || !voiceId || !githubToken) {
-      return NextResponse.json({ error: 'Configure HEYGEN_API_KEY, HEYGEN_AVATAR_ID, HEYGEN_VOICE_ID e GITHUB_ACTIONS_TOKEN no Cloudflare Pages.' }, { status: 503 });
+    if (!apiKey || !avatarId || !voiceId || !githubToken || !['avatar', 'talking_photo'].includes(configuredCharacterType)) {
+      return NextResponse.json({ error: 'Configure HEYGEN_API_KEY, HEYGEN_AVATAR_ID (ou HEYGEN_TALKING_PHOTO_ID), HEYGEN_VOICE_ID, GITHUB_ACTIONS_TOKEN e HEYGEN_CHARACTER_TYPE válido no Cloudflare Pages.' }, { status: 503 });
     }
 
     const { data: existingVideo, error: existingError } = await supabase
@@ -57,7 +58,13 @@ export async function POST(
       cta: content.cta,
       productName: product?.name || 'este produto',
     });
-    const heygenVideoId = await createHeyGenAvatarVideo({ apiKey, avatarId, voiceId, script });
+    const heygenVideoId = await createHeyGenAvatarVideo({
+      apiKey,
+      avatarId,
+      characterType: configuredCharacterType as 'avatar' | 'talking_photo',
+      voiceId,
+      script,
+    });
     const { error: insertError } = await supabase.from('marketing_videos').insert({
       id: crypto.randomUUID(),
       content_id: id,

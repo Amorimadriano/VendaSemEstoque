@@ -17,6 +17,7 @@ type HeyGenApiResponse = {
 };
 
 type HeyGenFetch = typeof fetch;
+export type HeyGenCharacterType = 'avatar' | 'talking_photo';
 
 function getErrorMessage(error: unknown) {
   if (typeof error === 'string') return error;
@@ -43,10 +44,16 @@ export function buildAvatarScript(content: {
 export async function createHeyGenAvatarVideo(options: {
   apiKey: string;
   avatarId: string;
+  characterType?: HeyGenCharacterType;
   voiceId: string;
   script: string;
   fetcher?: HeyGenFetch;
 }): Promise<string> {
+  const characterType = options.characterType || 'avatar';
+  const character = characterType === 'talking_photo'
+    ? { type: 'talking_photo', talking_photo_id: options.avatarId }
+    : { type: 'avatar', avatar_id: options.avatarId, avatar_style: 'normal' };
+
   const response = await (options.fetcher || fetch)('https://api.heygen.com/v2/video/generate', {
     method: 'POST',
     headers: {
@@ -56,11 +63,7 @@ export async function createHeyGenAvatarVideo(options: {
     },
     body: JSON.stringify({
       video_inputs: [{
-        character: {
-          type: 'avatar',
-          avatar_id: options.avatarId,
-          avatar_style: 'normal',
-        },
+        character,
         voice: {
           type: 'text',
           input_text: options.script,
