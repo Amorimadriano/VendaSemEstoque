@@ -12,25 +12,31 @@ export async function POST(
     const supabase = getSupabase();
     const { data: video, error } = await supabase
       .from('marketing_videos')
-      .select('status, video_url')
+      .select('status, video_url, error, provider_render_id')
       .eq('content_id', id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
-    if (!video?.video_url) {
+    if (!video) {
       return NextResponse.json(
-        { status: 'PENDING', error: 'Vídeo ainda não foi gerado via FFmpeg para este conteúdo.' },
+        { status: 'PENDING', error: 'Gere o vídeo com avatar antes de publicar.' },
         { status: 404 }
       );
     }
 
+    if (String(video.status).toUpperCase() === 'FAILED') {
+      return NextResponse.json({ status: 'FAILED', error: video.error || 'A geração do vídeo falhou.' }, { status: 422 });
+    }
+
     const ready = ['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(String(video.status || '').toUpperCase());
-    return NextResponse.json(
-      { status: video.status, videoUrl: video.video_url },
-      { status: ready ? 200 : 409 }
-    );
+    if (ready && video.video_url) return NextResponse.json({ status: video.status, videoUrl: video.video_url }, { status: 200 });
+
+    const message = video.provider_render_id?.startsWith('heygen:')
+      ? 'O avatar está sendo gerado; aguarde o processamento do FFmpeg.'
+      : 'O vídeo ainda está sendo preparado.';
+    return NextResponse.json({ status: video.status || 'RENDERING', error: message }, { status: 409 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar status do vídeo.' }, { status: 500 });
   }

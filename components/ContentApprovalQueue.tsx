@@ -13,6 +13,9 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
   const [publishError, setPublishError] = useState('');
   const [publishNotice, setPublishNotice] = useState('');
   const [videoError, setVideoError] = useState('');
+  const [videoNotice, setVideoNotice] = useState('');
+  const [videoGenerationContentId, setVideoGenerationContentId] = useState('');
+  const [videoPreviewUrls, setVideoPreviewUrls] = useState<Record<string, string>>({});
   const [instagramLimit, setInstagramLimit] = useState<InstagramLimit | null>(null);
   const [publishingContentId, setPublishingContentId] = useState('');
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
@@ -158,13 +161,44 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
 
   async function generateVideo(content: Content) {
     setVideoError('');
-    const response = await fetch(`/api/admin/content/${content.id}/video`, { method: 'POST' });
-    if (!response.ok) {
+    setVideoNotice('Enviando o roteiro para o avatar HeyGen...');
+    setVideoGenerationContentId(content.id);
+    try {
+      const response = await fetch(`/api/admin/content/${content.id}/video`, { method: 'POST' });
       const result = await response.json().catch(() => ({}));
-      setVideoError(result.error || 'Não foi possível verificar o vídeo.');
-      return;
+      if (!response.ok) throw new Error(result.error || 'Não foi possível iniciar o avatar.');
+      if (result.videoUrl) {
+        setVideoPreviewUrls((current) => ({ ...current, [content.id]: result.videoUrl }));
+        setVideoNotice('Avatar e composição FFmpeg prontos para revisão.');
+        return;
+      }
+
+      setVideoNotice('Avatar gerando; o FFmpeg vai compor o Reel. Você pode aguardar aqui ou voltar depois.');
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 15_000));
+        const statusResponse = await fetch(`/api/admin/content/${content.id}/video/status`, { method: 'POST' });
+        const status = await statusResponse.json().catch(() => ({}));
+        if (statusResponse.ok && status.videoUrl) {
+          setVideoPreviewUrls((current) => ({ ...current, [content.id]: status.videoUrl }));
+          setVideoNotice('Avatar e composição FFmpeg prontos para revisão.');
+          return;
+        }
+        if (status.status === 'FAILED' || statusResponse.status === 422) {
+          throw new Error(status.error || 'A geração do avatar falhou.');
+        }
+        if (statusResponse.status !== 409) {
+          throw new Error(status.error || 'Não foi possível consultar o progresso do vídeo.');
+        }
+        setVideoNotice(`Avatar e FFmpeg em andamento (${Math.min(attempt + 1, 40)} verificações).`);
+      }
+
+      throw new Error('O render ainda está em andamento. Aguarde e tente publicar depois; ele continuará processando no GitHub Actions.');
+    } catch (error) {
+      setVideoNotice('');
+      setVideoError(error instanceof Error ? error.message : 'Falha ao gerar vídeo com avatar.');
+    } finally {
+      setVideoGenerationContentId('');
     }
-    alert('Vídeos são gerados localmente via FFmpeg e enviados para o Supabase Storage.');
   }
 
   async function generateDrafts() {
@@ -290,6 +324,7 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
       {publishError && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{publishError}</p>}
       {publishNotice && <p className="mt-4 rounded-md bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">{publishNotice}</p>}
       {videoError && <p className="mt-4 rounded-md bg-red-50 p-3 text-xs font-semibold text-red-700">{videoError}</p>}
+      {videoNotice && <p role="status" className="mt-4 rounded-md bg-violet-50 p-3 text-xs font-semibold text-violet-800">{videoNotice}</p>}
       {instagramLimit && <p className={`mt-3 text-xs font-semibold ${instagramLimit.canPublish ? 'text-gray-600' : 'text-amber-700'}`}>Instagram: {instagramLimit.quotaUsage}/{instagramLimit.quotaTotal} usadas · {instagramLimit.remaining} restantes · reserva de segurança: {instagramLimit.reserve}</p>}
 
       <div className="mt-5 space-y-3">
@@ -333,10 +368,11 @@ export default function ContentApprovalQueue({ products }: { products: Product[]
                   />
                 )}
                 {content.content_type === 'REEL' && (
-                  <button onClick={() => generateVideo(content)} className="flex items-center gap-1 text-violet-700 hover:text-violet-800">
-                    <Send className="h-4 w-4" /> Gerar vídeo
+                  <button onClick={() => generateVideo(content)} disabled={videoGenerationContentId === content.id} className="flex items-center gap-1 text-violet-700 hover:text-violet-800 disabled:cursor-wait disabled:opacity-50">
+                    <Send className="h-4 w-4" /> {videoGenerationContentId === content.id ? 'Gerando avatar...' : 'Gerar vídeo com avatar'}
                   </button>
                 )}
+                {videoPreviewUrls[content.id] && <a href={videoPreviewUrls[content.id]} target="_blank" rel="noopener noreferrer" className="text-violet-700 underline">Pré-visualizar Reel</a>}
                 <button onClick={() => publishContent(content)} disabled={publishingContentId === content.id || (content.channel === 'instagram' && instagramLimit?.canPublish === false)} className="flex items-center gap-1 text-blue-700 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-40">
                     <Send className="h-4 w-4" /> {publishingContentId === content.id ? 'Publicando...' : content.channel === 'instagram' ? 'Publicar no Instagram' : 'Publicar no Facebook'}
                   </button>

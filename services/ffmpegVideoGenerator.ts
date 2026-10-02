@@ -178,6 +178,131 @@ export async function generateLocalProductVideo(
   return { buffer: videoBuffer, filePath: outputVideoPath };
 }
 
+export async function generateLocalAvatarProductVideo(
+  avatarVideoUrl: string,
+  product: {
+    name: string;
+    image_url?: string | null;
+    marketplace?: { name?: string | null } | null;
+  },
+  content: { hook: string; cta: string },
+  fetcher: typeof fetch = fetch
+): Promise<Buffer> {
+  if (!avatarVideoUrl.startsWith('https://')) throw new Error('A URL do avatar precisa usar HTTPS.');
+  if (!product.image_url || !product.image_url.startsWith('https://')) {
+    throw new Error('O produto precisa de uma imagem pública HTTPS para compor o Reel.');
+  }
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vse-avatar-reel-'));
+  const avatarPath = path.join(tmpDir, 'avatar.mp4');
+  const productImagePath = path.join(tmpDir, 'product-image');
+  const outputPath = path.join(tmpDir, 'final-reel.mp4');
+
+  try {
+    const [avatarResponse, imageResponse] = await Promise.all([
+      fetcher(avatarVideoUrl),
+      fetcher(product.image_url),
+    ]);
+    if (!avatarResponse.ok) throw new Error(`Falha ao baixar o avatar HeyGen (${avatarResponse.status}).`);
+    if (!imageResponse.ok) throw new Error(`Falha ao baixar a imagem do produto (${imageResponse.status}).`);
+
+    const avatarBytes = Buffer.from(await avatarResponse.arrayBuffer());
+    const imageBytes = Buffer.from(await imageResponse.arrayBuffer());
+    const maxVideoBytes = 250 * 1024 * 1024;
+    if (avatarBytes.length === 0 || avatarBytes.length > maxVideoBytes) throw new Error('O vídeo do avatar está vazio ou excede 250 MB.');
+    if (imageBytes.length === 0 || imageBytes.length > 20 * 1024 * 1024) throw new Error('A imagem do produto está vazia ou excede 20 MB.');
+    fs.writeFileSync(avatarPath, avatarBytes);
+    fs.writeFileSync(productImagePath, imageBytes);
+
+    const marketName = escapeFfmpegText(product.marketplace?.name || 'OFERTA').toUpperCase();
+    const titleLines = wrapTextLines(product.name, 23, 2);
+    const hookLines = wrapTextLines(content.hook, 25, 2);
+    const cta = escapeFfmpegText(content.cta || 'Confira os detalhes na loja parceira.');
+    const textFilters = [
+      `drawtext=text='${marketName}':fontcolor=white:fontsize=28:x=380:y=1495:box=1:boxcolor=0x1E3A8Acc:boxborderw=10`,
+      ...titleLines.map((line, index) => `drawtext=text='${escapeFfmpegText(line)}':fontcolor=white:fontsize=34:x=380:y=${1540 + index * 42}:box=1:boxcolor=0x111827cc:boxborderw=8`),
+      ...hookLines.map((line, index) => `drawtext=text='${escapeFfmpegText(line)}':fontcolor=0xA7F3D0:fontsize=30:x=380:y=${1635 + index * 40}:box=1:boxcolor=0x111827cc:boxborderw=8`),
+      `drawtext=text='${cta}':fontcolor=white:fontsize=28:x=380:y=1765:box=1:boxcolor=0x16A34Acc:boxborderw=12`,
+    ];
+    const filterComplex = [
+      '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[avatar]',
+      '[1:v]scale=300:300:force_original_aspect_ratio=decrease,pad=300:300:(ow-iw)/2:(oh-ih)/2:color=white,format=rgba[product]',
+      '[avatar]drawbox=x=0:y=1450:w=1080:h=470:color=0x111827cc:t=fill[base]',
+      '[base][product]overlay=x=40:y=1510:eof_action=repeat[withproduct]',
+      `[withproduct]${textFilters.join(',')},format=yuv420p[outv]`,
+    ].join(';');
+
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg()
+        .input(avatarPath)
+        .input(productImagePath)
+        .complexFilter(filterComplex)
+        .outputOptions([
+          '-map [outv]',
+          '-map 0:a?',
+          '-c:v libx264',
+          '-c:a aac',
+          '-b:a 128k',
+          '-pix_fmt yuv420p',
+          '-movflags +faststart',
+          '-r 30',
+          '-shortest',
+        ])
+        .output(outputPath)
+        .on('end', () => resolve())
+        .on('error', (error) => reject(new Error(`Erro ao compor o avatar com FFmpeg: ${error.message}`)))
+        .run();
+    });
+
+    return fs.readFileSync(outputPath);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+export async function renderAvatarProductVideoAndUpload(
+  contentId: string,
+  videoRecordId: string,
+  avatarVideoUrl: string
+): Promise<{ videoUrl: string; status: string }> {
+  const supabase = getSupabase();
+  const { data: content, error: contentError } = await supabase
+    .from('marketing_content')
+    .select('id,hook,cta,product:products(name,image_url,marketplace:marketplaces(name))')
+    .eq('id', contentId)
+    .single();
+  if (contentError || !content) throw new Error(contentError?.message || 'Conteúdo não encontrado para compor o avatar.');
+
+  const product = content.product as { name?: string; image_url?: string; marketplace?: { name?: string } } | null;
+  const productName = product?.name;
+  const productImageUrl = product?.image_url;
+  if (!product || !productName || !productImageUrl) throw new Error('O produto precisa de nome e imagem pública para compor o Reel.');
+
+  const buffer = await generateLocalAvatarProductVideo(avatarVideoUrl, {
+    name: productName,
+    image_url: productImageUrl,
+    marketplace: product.marketplace,
+  }, { hook: content.hook, cta: content.cta });
+  const storagePath = `reels/${contentId}-avatar-${Date.now()}.mp4`;
+  const { data: upload, error: uploadError } = await supabase.storage.from('videos').upload(storagePath, buffer, {
+    contentType: 'video/mp4',
+    upsert: true,
+  });
+  if (uploadError || !upload) throw new Error(uploadError?.message || 'Falha ao enviar o Reel composto para o Storage.');
+
+  const { data: publicUrl } = supabase.storage.from('videos').getPublicUrl(upload.path);
+  const videoUrl = publicUrl.publicUrl;
+  const { error: updateError } = await supabase.from('marketing_videos').update({
+    status: 'SUCCEEDED',
+    video_url: videoUrl,
+    error: null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', videoRecordId);
+  if (updateError) throw updateError;
+
+  return { videoUrl, status: 'SUCCEEDED' };
+}
+
 export async function createFfmpegProductVideoAndUpload(contentId: string): Promise<{ videoUrl: string; status: string; videoId: string }> {
   const supabase = getSupabase();
 
