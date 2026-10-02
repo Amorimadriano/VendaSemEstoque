@@ -70,6 +70,19 @@ model AdminUser {
   @@schema("public")
 }
 
+model InstagramProfileCandidate {
+  id         String   @id @default(uuid())
+  username   String   @unique
+  profileUrl String   @map("profile_url")
+  notes      String?
+  status     String   @default("PENDING_REVIEW")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("instagram_profile_candidates")
+  @@schema("public")
+}
+
 model Category {
   id          String     @id @default(uuid())
   name        String

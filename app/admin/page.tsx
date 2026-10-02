@@ -25,6 +25,7 @@ import ContentApprovalQueue from '@/components/ContentApprovalQueue';
 import MarketplaceSyncStatus from '@/components/MarketplaceSyncStatus';
 import OperationsHealth from '@/components/OperationsHealth';
 import FacebookWeeklyTasks from '@/components/FacebookWeeklyTasks';
+import InstagramProfileQueue from '@/components/InstagramProfileQueue';
 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
@@ -495,6 +496,7 @@ const fetchData = async () => {
 
       <OperationsHealth />
       <FacebookWeeklyTasks />
+      <InstagramProfileQueue />
       <MarketplaceSyncStatus />
       <ContentApprovalQueue products={products} />
       <MarketingAgent products={products} summary={summary} />
