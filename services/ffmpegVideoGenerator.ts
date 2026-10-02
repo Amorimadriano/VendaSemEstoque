@@ -5,6 +5,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 import { getSupabase } from '@/lib/supabase';
+import { buildAvatarScript, createHeyGenAvatarVideo, getHeyGenAvatarVideoStatus } from './heygenAvatarVideo';
 
 if (ffmpegInstaller?.path) {
   ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -301,6 +302,120 @@ export async function renderAvatarProductVideoAndUpload(
   if (updateError) throw updateError;
 
   return { videoUrl, status: 'SUCCEEDED' };
+}
+
+export async function createHeyGenAvatarProductVideoAndUpload(contentId: string): Promise<{ videoUrl: string; status: string; videoId: string }> {
+  const apiKey = process.env.HEYGEN_API_KEY;
+  const avatarId = process.env.HEYGEN_TALKING_PHOTO_ID || process.env.HEYGEN_AVATAR_ID;
+  const voiceId = process.env.HEYGEN_VOICE_ID;
+  const characterType = process.env.HEYGEN_CHARACTER_TYPE || 'talking_photo';
+  if (!apiKey || !avatarId || !voiceId || !['avatar', 'talking_photo'].includes(characterType)) {
+    throw new Error('Configure HEYGEN_API_KEY, HEYGEN_AVATAR_ID (ou HEYGEN_TALKING_PHOTO_ID) e HEYGEN_VOICE_ID nos secrets do workflow.');
+  }
+
+  const supabase = getSupabase();
+  const { data: content, error: contentError } = await supabase
+    .from('marketing_content')
+    .select('id,script,hook,caption,cta,product:products(name,image_url,marketplace:marketplaces(name))')
+    .eq('id', contentId)
+    .single();
+  if (contentError || !content) throw new Error(contentError?.message || 'Conteúdo não encontrado para gerar o Reel com avatar.');
+
+  const product = content.product as { name?: string; image_url?: string; marketplace?: { name?: string } } | null;
+  const productName = product?.name;
+  if (!product || !productName || !product.image_url) throw new Error('O produto precisa de nome e imagem pública para gerar o Reel.');
+
+  const { data: previousVideo, error: previousVideoError } = await supabase
+    .from('marketing_videos')
+    .select('id,provider_render_id,status,video_url')
+    .eq('content_id', contentId)
+    .like('provider_render_id', 'heygen:%')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (previousVideoError) throw previousVideoError;
+
+  if (previousVideo && ['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(String(previousVideo.status).toUpperCase()) && previousVideo.video_url) {
+    return { videoUrl: previousVideo.video_url, status: 'SUCCEEDED', videoId: previousVideo.id };
+  }
+
+  let videoRecordId = previousVideo?.id;
+  let heygenVideoId = previousVideo?.status === 'RENDERING'
+    ? String(previousVideo.provider_render_id).slice('heygen:'.length)
+    : '';
+
+  if (!heygenVideoId) {
+    const script = buildAvatarScript({
+      script: content.script,
+      hook: content.hook,
+      caption: content.caption,
+      cta: content.cta,
+      productName,
+    });
+    heygenVideoId = await createHeyGenAvatarVideo({
+      apiKey,
+      avatarId,
+      characterType: characterType as 'avatar' | 'talking_photo',
+      voiceId,
+      script,
+    });
+    videoRecordId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const { error: insertError } = await supabase.from('marketing_videos').insert({
+      id: videoRecordId,
+      content_id: contentId,
+      provider_render_id: `heygen:${heygenVideoId}`,
+      status: 'RENDERING',
+      video_url: null,
+      error: null,
+      created_at: now,
+      updated_at: now,
+    });
+    if (insertError) throw insertError;
+  }
+
+  const recordFailure = async (message: string) => {
+    if (!videoRecordId) return;
+    await supabase.from('marketing_videos').update({
+      status: 'FAILED',
+      error: message.slice(0, 2000),
+      updated_at: new Date().toISOString(),
+    }).eq('id', videoRecordId);
+  };
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    let status;
+    try {
+      status = await getHeyGenAvatarVideoStatus({ apiKey, videoId: heygenVideoId });
+    } catch (error) {
+      console.warn(`[HeyGen] Falha temporária ao consultar ${heygenVideoId}:`, error instanceof Error ? error.message : String(error));
+      await new Promise((resolve) => setTimeout(resolve, 15_000));
+      continue;
+    }
+
+    if (status.status === 'FAILED') {
+      const message = status.error || 'A HeyGen não conseguiu gerar o avatar.';
+      await recordFailure(message);
+      throw new Error(message);
+    }
+
+    if (status.status === 'COMPLETED' && status.videoUrl && videoRecordId) {
+      try {
+        const result = await renderAvatarProductVideoAndUpload(contentId, videoRecordId, status.videoUrl);
+        return { ...result, videoId: videoRecordId };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await recordFailure(message);
+        throw error;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+  }
+
+  const timeoutMessage = 'O avatar excedeu o tempo máximo de processamento de 10 minutos.';
+  await recordFailure(timeoutMessage);
+  throw new Error(timeoutMessage);
 }
 
 export async function createFfmpegProductVideoAndUpload(contentId: string): Promise<{ videoUrl: string; status: string; videoId: string }> {

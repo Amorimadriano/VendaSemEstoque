@@ -32,6 +32,12 @@ jobs:
           META_FACEBOOK_PAGE_ID: ${{ secrets.META_FACEBOOK_PAGE_ID }}
           META_INSTAGRAM_ACCOUNT_ID: ${{ secrets.META_INSTAGRAM_ACCOUNT_ID }}
           META_INSTAGRAM_BRANDED_CONTENT: ${{ vars.META_INSTAGRAM_BRANDED_CONTENT || 'false' }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          HEYGEN_AVATAR_ID: ${{ secrets.HEYGEN_AVATAR_ID }}
+          HEYGEN_TALKING_PHOTO_ID: ${{ secrets.HEYGEN_TALKING_PHOTO_ID }}
+          HEYGEN_VOICE_ID: ${{ secrets.HEYGEN_VOICE_ID }}
+          HEYGEN_CHARACTER_TYPE: ${{ vars.HEYGEN_CHARACTER_TYPE || 'talking_photo' }}
+          HEYGEN_MAX_AVATAR_VIDEOS_PER_RUN: ${{ vars.HEYGEN_MAX_AVATAR_VIDEOS_PER_RUN || '1' }}
           FFMPEG_MAX_PUBLICATIONS: ${{ vars.FFMPEG_MAX_PUBLICATIONS || '2' }}
           FFMPEG_POST_DELAY_MS: ${{ vars.FFMPEG_POST_DELAY_MS || '15000' }}
         run: npx tsx scripts/generate-and-publish-ffmpeg.ts
