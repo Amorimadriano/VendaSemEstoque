@@ -16,6 +16,22 @@ function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 }
 
+export function formatSyncError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (!error || typeof error !== 'object') return String(error);
+
+  const fields = error as Record<string, unknown>;
+  const parts: string[] = [];
+  for (const key of ['message', 'code', 'details', 'hint']) {
+    const value = fields[key];
+    if (typeof value === 'string' && value.trim()) {
+      parts.push(key === 'message' ? value : `${key}=${value}`);
+    }
+  }
+
+  return parts.join(' | ') || JSON.stringify(error) || String(error);
+}
+
 type ValidationResult = {
   isValid: boolean;
   reason?: string;
@@ -137,7 +153,9 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
   }, { onConflict: 'slug' }).select('id').single();
   if (categoryError) throw categoryError;
 
-  const affiliateUrl = await getMarketplaceIntegration(marketplaceSlug).createAffiliateLink(product.originalUrl, product.externalProductId);
+  const affiliateUrl = marketplaceSlug === 'aliexpress'
+    ? product.affiliateUrl
+    : await getMarketplaceIntegration(marketplaceSlug).createAffiliateLink(product.originalUrl, product.externalProductId);
   const slug = `${toSlug(product.name)}-${product.externalProductId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.slice(0, 190);
   const commissionPercentage = product.commissionPercentage || DEFAULT_COMMISSION;
   const ranking = calculateRanking(product, commissionPercentage);
@@ -323,8 +341,16 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
       await upsertProduct(product, key.split(':')[0]);
       published += 1;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`upsert "${product.name}": ${message}`);
+      const diagnostic = {
+        stage: 'upsert',
+        marketplace: marketplaceSlug,
+        externalProductId: product.externalProductId,
+        productName: product.name,
+        error: formatSyncError(error),
+      };
+      const message = JSON.stringify(diagnostic);
+      console.error('[ProductDiscovery] Upsert failed:', message);
+      errors.push(message);
     }
   }
 

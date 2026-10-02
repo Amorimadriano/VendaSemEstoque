@@ -2,11 +2,12 @@ import { AffiliateClickData } from '@/types';
 import { getSupabase } from '@/lib/supabase';
 
 export function appendMarketplaceTracking(url: string, marketplaceSlug: string | undefined, trackingId: string) {
+  if (marketplaceSlug === 'aliexpress') return url;
+
   const affiliateUrl = new URL(url);
   const parameter = marketplaceSlug === 'amazon' ? 'ascsubtag'
     : marketplaceSlug === 'shopee' ? 'sub_id'
-      : marketplaceSlug === 'aliexpress' ? 'aff_platform'
-          : 'subid_click';
+      : 'subid_click';
   affiliateUrl.searchParams.set(parameter, trackingId);
   return affiliateUrl.toString();
 }

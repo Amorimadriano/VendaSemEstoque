@@ -255,7 +255,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
 
             const converted: ExternalProduct[] = [];
             for (const item of products) {
-              const product = this.convertApiProduct(item, query || category || 'AliExpress');
+              const product = await this.convertApiProduct(item, query || category || 'AliExpress');
               if (product) {
                 converted.push(product);
                 if (converted.length >= safeLimit) break;
@@ -282,7 +282,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     const chosen = filtered.length ? filtered : REAL_ALIEXPRESS_TOP_PRODUCTS;
     const commissionPercentage = Number(process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
 
-    return chosen.slice(0, safeLimit).map((item) => {
+    return Promise.all(chosen.slice(0, safeLimit).map(async (item) => {
       const discountPercentage = item.original_price
         ? Math.round(((item.original_price - item.price) / item.original_price) * 100)
         : undefined;
@@ -304,10 +304,10 @@ export class AliExpressIntegration implements MarketplaceIntegration {
         commissionPercentage,
         commissionValue: Math.round(((item.price * commissionPercentage) / 100) * 100) / 100,
         originalUrl: item.permalink,
-        affiliateUrl: `${item.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendanew'}`,
+        affiliateUrl: await this.createAffiliateLink(item.permalink),
         isAvailable: true,
       } satisfies ExternalProduct;
-    });
+    }));
   }
 
   async verifyProduct(externalId: string): Promise<ProductVerificationResult> {
@@ -342,7 +342,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
           commissionPercentage,
           commissionValue: Math.round(((curated.price * commissionPercentage) / 100) * 100) / 100,
           originalUrl: curated.permalink,
-          affiliateUrl: `${curated.permalink}?tracking_id=${process.env.ALIEXPRESS_TRACKING_ID || 'vendasemestoque'}`,
+          affiliateUrl: await this.createAffiliateLink(curated.permalink),
           isAvailable: true,
         },
       };
@@ -423,7 +423,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
         };
       }
 
-      const converted = this.convertApiProduct(item);
+      const converted = await this.convertApiProduct(item);
       if (!converted) {
         return {
           status: 'NOT_FOUND',
@@ -469,17 +469,48 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     return product ? { price: product.price, oldPrice: product.oldPrice } : null;
   }
 
-  async createAffiliateLink(productUrl: string, customTrackingId?: string): Promise<string> {
-    if (!productUrl || !productUrl.startsWith('http')) return productUrl;
-    try {
-      const url = new URL(productUrl);
-      const trackingId = process.env.ALIEXPRESS_TRACKING_ID || '';
-      if (trackingId) url.searchParams.set('tracking_id', trackingId);
-      if (customTrackingId) url.searchParams.set('aff_platform', customTrackingId);
-      return url.toString();
-    } catch {
-      return productUrl;
+  async createAffiliateLink(productUrl: string, _customTrackingId?: string): Promise<string> {
+    if (!this.isDirectProductUrl(productUrl)) {
+      throw new Error('URL de produto AliExpress inválida para gerar link afiliado');
     }
+    this.assertCredentials();
+
+    const params: Record<string, string> = {
+      app_key: process.env.ALIEXPRESS_APP_KEY || '',
+      method: 'aliexpress.affiliate.link.generate',
+      sign_method: 'hmac-sha256',
+      format: 'json',
+      v: '2.0',
+      timestamp: this.formatTimestamp(new Date()),
+      promotion_link_type: '0',
+      source_values: productUrl,
+      tracking_id: process.env.ALIEXPRESS_TRACKING_ID || '',
+    };
+    params.sign = await this.sign(params);
+
+    const response = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(params)}`);
+    const responseText = await response.text();
+    if (!response.ok || !responseText.trim().startsWith('{')) {
+      throw new Error(`Falha ao gerar link afiliado AliExpress (HTTP ${response.status})`);
+    }
+
+    const payload = JSON.parse(responseText);
+    if (payload?.error_response) {
+      throw new Error(payload.error_response.msg || 'Erro da API ao gerar link afiliado AliExpress');
+    }
+
+    let result = payload?.aliexpress_affiliate_link_generate_response?.resp_result?.result
+      || payload?.resp_result?.result
+      || payload?.result;
+    if (typeof result === 'string') result = JSON.parse(result);
+
+    const links = result?.promotion_links?.promotion_link || result?.promotion_link || [];
+    const firstLink = Array.isArray(links) ? links[0] : links;
+    const affiliateUrl = typeof firstLink === 'string' ? firstLink : firstLink?.promotion_link;
+    if (typeof affiliateUrl !== 'string' || !affiliateUrl.startsWith('http') || affiliateUrl === productUrl) {
+      throw new Error('API AliExpress não retornou um link promocional válido');
+    }
+    return affiliateUrl;
   }
 
   async getClicks(_startDate?: Date, _endDate?: Date): Promise<number> {
@@ -541,7 +572,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     return { total: 0, pending: 0, approved: 0 };
   }
 
-  private convertApiProduct(item: AliExpressApiProduct, category?: string): ExternalProduct | null {
+  private async convertApiProduct(item: AliExpressApiProduct, category?: string): Promise<ExternalProduct | null> {
     const externalProductId = String(item.product_id || '').trim();
     const name = String(item.product_title || '').trim();
     const originalUrl = String(item.product_detail_url || `https://www.aliexpress.com/item/${externalProductId}.html`).trim();
@@ -560,7 +591,9 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     const commissionPercentage = Number(item.commission_rate || process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
     const reviewCount = Number(item.lastest_volume || 0);
     const rating = Number(item.evaluate_rate || 0);
-    const affiliateUrl = item.promotion_link && item.promotion_link.startsWith('http') ? item.promotion_link : originalUrl;
+    const affiliateUrl = item.promotion_link && item.promotion_link.startsWith('http')
+      ? item.promotion_link
+      : await this.createAffiliateLink(originalUrl);
 
     return {
       externalProductId,

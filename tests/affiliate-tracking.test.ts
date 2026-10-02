@@ -5,7 +5,6 @@ import { appendMarketplaceTracking } from '../services/trackingService';
 const cases = [
   ['amazon', 'ascsubtag'],
   ['shopee', 'sub_id'],
-  ['aliexpress', 'aff_platform'],
 ] as const;
 
 for (const [marketplace, parameter] of cases) {
@@ -15,3 +14,8 @@ for (const [marketplace, parameter] of cases) {
     assert.equal(result.searchParams.get('tag'), 'partner');
   });
 }
+
+test('preserves the AliExpress promotion link during click tracking', () => {
+  const promotionLink = 'https://s.click.aliexpress.com/e/example?tracking_id=partner';
+  assert.equal(appendMarketplaceTracking(promotionLink, 'aliexpress', 'click-id'), promotionLink);
+});
