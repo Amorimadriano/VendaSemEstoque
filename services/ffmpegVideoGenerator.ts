@@ -179,6 +179,23 @@ export async function generateLocalProductVideo(
   return { buffer: videoBuffer, filePath: outputVideoPath };
 }
 
+// HeyGen pads landscape talking photos with light bars inside the 9:16 frame; find the real content band.
+function detectLightLetterbox(videoPath: string): Promise<{ height: number; y: number } | null> {
+  return new Promise((resolve) => {
+    let band: { height: number; y: number } | null = null;
+    ffmpeg(videoPath)
+      .outputOptions(['-vf negate,cropdetect=limit=24:round=2:reset=0', '-frames:v 30', '-f null'])
+      .output('-')
+      .on('stderr', (line: string) => {
+        const match = line.match(/crop=\d+:(\d+):\d+:(\d+)/);
+        if (match) band = { height: Number(match[1]), y: Number(match[2]) };
+      })
+      .on('end', () => resolve(band && band.height >= 16 && band.y >= 0 ? band : null))
+      .on('error', () => resolve(null))
+      .run();
+  });
+}
+
 export async function generateLocalAvatarProductVideo(
   avatarVideoUrl: string,
   product: {
@@ -215,21 +232,25 @@ export async function generateLocalAvatarProductVideo(
     fs.writeFileSync(avatarPath, avatarBytes);
     fs.writeFileSync(productImagePath, imageBytes);
 
+    const band = await detectLightLetterbox(avatarPath);
+    const avatarCrop = band ? `crop=iw:${band.height}:0:${band.y},` : '';
+
+    // Layout: product image on top, avatar in the middle, offer details at the bottom.
     const marketName = escapeFfmpegText(product.marketplace?.name || 'OFERTA').toUpperCase();
-    const titleLines = wrapTextLines(product.name, 23, 2);
-    const hookLines = wrapTextLines(content.hook, 25, 2);
+    const titleLines = wrapTextLines(product.name, 40, 2);
+    const hookLines = wrapTextLines(content.hook, 44, 2);
     const cta = escapeFfmpegText(content.cta || 'Confira os detalhes na loja parceira.');
     const textFilters = [
-      `drawtext=text='${marketName}':fontcolor=white:fontsize=28:x=380:y=1495:box=1:boxcolor=0x1E3A8Acc:boxborderw=10`,
-      ...titleLines.map((line, index) => `drawtext=text='${escapeFfmpegText(line)}':fontcolor=white:fontsize=34:x=380:y=${1540 + index * 42}:box=1:boxcolor=0x111827cc:boxborderw=8`),
-      ...hookLines.map((line, index) => `drawtext=text='${escapeFfmpegText(line)}':fontcolor=0xA7F3D0:fontsize=30:x=380:y=${1635 + index * 40}:box=1:boxcolor=0x111827cc:boxborderw=8`),
-      `drawtext=text='${cta}':fontcolor=white:fontsize=28:x=380:y=1765:box=1:boxcolor=0x16A34Acc:boxborderw=12`,
+      `drawtext=text='${marketName}':fontcolor=white:fontsize=30:x=50:y=1500:box=1:boxcolor=0x1E3A8Acc:boxborderw=10`,
+      ...titleLines.map((line, index) => `drawtext=text='${escapeFfmpegText(line)}':fontcolor=white:fontsize=38:x=50:y=${1555 + index * 48}:box=1:boxcolor=0x111827cc:boxborderw=8`),
+      ...hookLines.map((line, index) => `drawtext=text='${escapeFfmpegText(line)}':fontcolor=0xA7F3D0:fontsize=32:x=50:y=${1665 + index * 42}:box=1:boxcolor=0x111827cc:boxborderw=8`),
+      `drawtext=text='${cta}':fontcolor=white:fontsize=32:x=50:y=1790:box=1:boxcolor=0x16A34Acc:boxborderw=12`,
     ];
     const filterComplex = [
-      '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[avatar]',
-      '[1:v]scale=300:300:force_original_aspect_ratio=decrease,pad=300:300:(ow-iw)/2:(oh-ih)/2:color=white,format=rgba[product]',
-      '[avatar]drawbox=x=0:y=1450:w=1080:h=470:color=0x111827cc:t=fill[base]',
-      '[base][product]overlay=x=40:y=1510:eof_action=repeat[withproduct]',
+      `[0:v]${avatarCrop}scale=1080:760:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:690+(760-ih)/2:color=0xF3F4F6,setsar=1[avatar]`,
+      '[1:v]scale=1000:600:force_original_aspect_ratio=decrease,pad=1000:600:(ow-iw)/2:(oh-ih)/2:color=white,format=rgba[product]',
+      '[avatar]drawbox=x=0:y=1470:w=1080:h=450:color=0x111827:t=fill[base]',
+      '[base][product]overlay=x=40:y=60:eof_action=repeat[withproduct]',
       `[withproduct]${textFilters.join(',')},format=yuv420p[outv]`,
     ].join(';');
 
