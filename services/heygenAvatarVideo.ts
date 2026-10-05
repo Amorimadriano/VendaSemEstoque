@@ -32,7 +32,12 @@ export function resolveHeyGenCharacter(env: {
   }
   const variable = characterType === 'avatar' ? 'HEYGEN_AVATAR_ID' : 'HEYGEN_TALKING_PHOTO_ID';
   const avatarId = env[variable]?.trim();
-  if (!avatarId) throw new Error(`Configure ${variable} com um ID acessivel pela HEYGEN_API_KEY para o tipo ${characterType}.`);
+  if (!avatarId) {
+    const typeSource = env.HEYGEN_CHARACTER_TYPE?.trim()
+      ? `HEYGEN_CHARACTER_TYPE=${characterType}`
+      : 'HEYGEN_CHARACTER_TYPE ausente e HEYGEN_TALKING_PHOTO_ID vazio';
+    throw new Error(`Configure ${variable} com um ID acessivel pela HEYGEN_API_KEY para o tipo ${characterType} (${typeSource}).`);
+  }
   return { avatarId, characterType };
 }
 

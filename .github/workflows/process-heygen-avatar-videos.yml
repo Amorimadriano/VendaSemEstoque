@@ -41,7 +41,7 @@ jobs:
           HEYGEN_AVATAR_ID: ${{ secrets.HEYGEN_AVATAR_ID }}
           HEYGEN_TALKING_PHOTO_ID: ${{ secrets.HEYGEN_TALKING_PHOTO_ID }}
           HEYGEN_VOICE_ID: ${{ secrets.HEYGEN_VOICE_ID }}
-          HEYGEN_CHARACTER_TYPE: ${{ vars.HEYGEN_CHARACTER_TYPE }}
+          HEYGEN_CHARACTER_TYPE: ${{ vars.HEYGEN_CHARACTER_TYPE || secrets.HEYGEN_CHARACTER_TYPE }}
         run: |
           test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "Missing SUPABASE_SERVICE_ROLE_KEY secret" && exit 1)
           npx tsx scripts/process-heygen-avatar-videos.ts "${{ inputs.content_id }}" "${{ inputs.video_record_id }}"
