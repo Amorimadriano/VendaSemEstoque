@@ -4,7 +4,33 @@ import {
   buildAvatarScript,
   createHeyGenAvatarVideo,
   getHeyGenAvatarVideoStatus,
+  resolveHeyGenCharacter,
 } from '../services/heygenAvatarVideo';
+
+test('resolves the ID for the explicit character type without mixing avatar and photo IDs', () => {
+  const env = { HEYGEN_AVATAR_ID: ' avatar-123 ', HEYGEN_TALKING_PHOTO_ID: 'photo-456' };
+  assert.deepEqual(resolveHeyGenCharacter({ ...env, HEYGEN_CHARACTER_TYPE: 'avatar' }), {
+    avatarId: 'avatar-123', characterType: 'avatar',
+  });
+  assert.deepEqual(resolveHeyGenCharacter({ ...env, HEYGEN_CHARACTER_TYPE: 'talking_photo' }), {
+    avatarId: 'photo-456', characterType: 'talking_photo',
+  });
+});
+
+test('infers the character type from configured IDs when no explicit type is set', () => {
+  assert.deepEqual(resolveHeyGenCharacter({ HEYGEN_AVATAR_ID: 'avatar-123' }), {
+    avatarId: 'avatar-123', characterType: 'avatar',
+  });
+  assert.deepEqual(resolveHeyGenCharacter({ HEYGEN_TALKING_PHOTO_ID: 'photo-456', HEYGEN_CHARACTER_TYPE: '' }), {
+    avatarId: 'photo-456', characterType: 'talking_photo',
+  });
+});
+
+test('rejects missing IDs for the chosen type and unsupported character types', () => {
+  assert.throws(() => resolveHeyGenCharacter({ HEYGEN_CHARACTER_TYPE: 'avatar', HEYGEN_TALKING_PHOTO_ID: 'photo-456' }), /Configure HEYGEN_AVATAR_ID/);
+  assert.throws(() => resolveHeyGenCharacter({ HEYGEN_CHARACTER_TYPE: 'talking_photo', HEYGEN_AVATAR_ID: 'avatar-123' }), /Configure HEYGEN_TALKING_PHOTO_ID/);
+  assert.throws(() => resolveHeyGenCharacter({ HEYGEN_CHARACTER_TYPE: 'invalid' }), /deve ser avatar ou talking_photo/);
+});
 
 test('buildAvatarScript prefers the approved script and caps its length', () => {
   assert.equal(buildAvatarScript({ script: '  Olá, veja este produto.  ', productName: 'Produto' }), 'Olá, veja este produto.');

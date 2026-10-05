@@ -19,6 +19,22 @@ type HeyGenApiResponse = {
 type HeyGenFetch = typeof fetch;
 export type HeyGenCharacterType = 'avatar' | 'talking_photo';
 
+export function resolveHeyGenCharacter(env: {
+  HEYGEN_CHARACTER_TYPE?: string;
+  HEYGEN_AVATAR_ID?: string;
+  HEYGEN_TALKING_PHOTO_ID?: string;
+}): { avatarId: string; characterType: HeyGenCharacterType } {
+  const photoId = env.HEYGEN_TALKING_PHOTO_ID?.trim();
+  const characterType = env.HEYGEN_CHARACTER_TYPE?.trim() || (photoId ? 'talking_photo' : 'avatar');
+  if (characterType !== 'avatar' && characterType !== 'talking_photo') {
+    throw new Error('HEYGEN_CHARACTER_TYPE deve ser avatar ou talking_photo.');
+  }
+  const variable = characterType === 'avatar' ? 'HEYGEN_AVATAR_ID' : 'HEYGEN_TALKING_PHOTO_ID';
+  const avatarId = env[variable]?.trim();
+  if (!avatarId) throw new Error(`Configure ${variable} com um ID acessivel pela HEYGEN_API_KEY para o tipo ${characterType}.`);
+  return { avatarId, characterType };
+}
+
 function getErrorMessage(error: unknown) {
   if (typeof error === 'string') return error;
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;

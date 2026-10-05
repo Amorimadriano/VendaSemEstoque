@@ -36,7 +36,7 @@ jobs:
           HEYGEN_AVATAR_ID: ${{ secrets.HEYGEN_AVATAR_ID }}
           HEYGEN_TALKING_PHOTO_ID: ${{ secrets.HEYGEN_TALKING_PHOTO_ID }}
           HEYGEN_VOICE_ID: ${{ secrets.HEYGEN_VOICE_ID }}
-          HEYGEN_CHARACTER_TYPE: ${{ vars.HEYGEN_CHARACTER_TYPE || 'talking_photo' }}
+          HEYGEN_CHARACTER_TYPE: ${{ vars.HEYGEN_CHARACTER_TYPE }}
           HEYGEN_MAX_AVATAR_VIDEOS_PER_RUN: ${{ vars.HEYGEN_MAX_AVATAR_VIDEOS_PER_RUN || '1' }}
           FFMPEG_MAX_PUBLICATIONS: ${{ vars.FFMPEG_MAX_PUBLICATIONS || '2' }}
           FFMPEG_POST_DELAY_MS: ${{ vars.FFMPEG_POST_DELAY_MS || '15000' }}

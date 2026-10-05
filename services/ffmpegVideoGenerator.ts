@@ -5,7 +5,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 import { getSupabase } from '@/lib/supabase';
-import { buildAvatarScript, createHeyGenAvatarVideo, getHeyGenAvatarVideoStatus } from './heygenAvatarVideo';
+import { buildAvatarScript, createHeyGenAvatarVideo, getHeyGenAvatarVideoStatus, resolveHeyGenCharacter } from './heygenAvatarVideo';
 
 if (ffmpegInstaller?.path) {
   ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -306,12 +306,11 @@ export async function renderAvatarProductVideoAndUpload(
 
 export async function createHeyGenAvatarProductVideoAndUpload(contentId: string): Promise<{ videoUrl: string; status: string; videoId: string }> {
   const apiKey = process.env.HEYGEN_API_KEY;
-  const avatarId = process.env.HEYGEN_TALKING_PHOTO_ID || process.env.HEYGEN_AVATAR_ID;
   const voiceId = process.env.HEYGEN_VOICE_ID;
-  const characterType = process.env.HEYGEN_CHARACTER_TYPE || 'talking_photo';
-  if (!apiKey || !avatarId || !voiceId || !['avatar', 'talking_photo'].includes(characterType)) {
-    throw new Error('Configure HEYGEN_API_KEY, HEYGEN_AVATAR_ID (ou HEYGEN_TALKING_PHOTO_ID) e HEYGEN_VOICE_ID nos secrets do workflow.');
+  if (!apiKey || !voiceId) {
+    throw new Error('Configure HEYGEN_API_KEY e HEYGEN_VOICE_ID nos secrets do workflow.');
   }
+  const { avatarId, characterType } = resolveHeyGenCharacter(process.env);
 
   const supabase = getSupabase();
   const { data: content, error: contentError } = await supabase
@@ -355,7 +354,7 @@ export async function createHeyGenAvatarProductVideoAndUpload(contentId: string)
     heygenVideoId = await createHeyGenAvatarVideo({
       apiKey,
       avatarId,
-      characterType: characterType as 'avatar' | 'talking_photo',
+      characterType,
       voiceId,
       script,
     });
