@@ -7,6 +7,13 @@ import {
   resolveHeyGenCharacter,
 } from '../services/heygenAvatarVideo';
 
+test('accepts Node.js ProcessEnv without a type assertion', () => {
+  const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', HEYGEN_AVATAR_ID: 'avatar-123' };
+  assert.deepEqual(resolveHeyGenCharacter(env), {
+    avatarId: 'avatar-123', characterType: 'avatar',
+  });
+});
+
 test('resolves the ID for the explicit character type without mixing avatar and photo IDs', () => {
   const env = { HEYGEN_AVATAR_ID: ' avatar-123 ', HEYGEN_TALKING_PHOTO_ID: 'photo-456' };
   assert.deepEqual(resolveHeyGenCharacter({ ...env, HEYGEN_CHARACTER_TYPE: 'avatar' }), {

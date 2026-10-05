@@ -20,6 +20,7 @@ type HeyGenFetch = typeof fetch;
 export type HeyGenCharacterType = 'avatar' | 'talking_photo';
 
 export function resolveHeyGenCharacter(env: {
+  [key: string]: string | undefined;
   HEYGEN_CHARACTER_TYPE?: string;
   HEYGEN_AVATAR_ID?: string;
   HEYGEN_TALKING_PHOTO_ID?: string;
