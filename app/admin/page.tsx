@@ -43,6 +43,8 @@ export default function AdminDashboardPage() {
   const [productStatus, setProductStatus] = useState('');
   const [productPage, setProductPage] = useState(1);
   const [isShopeeImportOpen, setIsShopeeImportOpen] = useState(false);
+  const [shopeeImportMode, setShopeeImportMode] = useState<'products' | 'shop'>('products');
+  const [shopeeShopLimit, setShopeeShopLimit] = useState(20);
   const [shopeeImportUrls, setShopeeImportUrls] = useState('');
   const [isImportingShopee, setIsImportingShopee] = useState(false);
   const [shopeeImportResults, setShopeeImportResults] = useState<Array<{ affiliateUrl: string; status: string; name?: string; message?: string }>>([]);
@@ -210,30 +212,48 @@ const fetchData = async () => {
   const handleShopeeImport = async () => {
     const lines = shopeeImportUrls.split(/[;\r\n]+/).map((line) => line.trim()).filter(Boolean);
     if (!lines.length) return;
-    if (lines.length % 2 !== 0) {
+    if (shopeeImportMode === 'shop' && lines.length !== 1) {
+      alert('Cole apenas um link de loja Shopee.');
+      return;
+    }
+    if (shopeeImportMode === 'products' && lines.length % 2 !== 0) {
       alert('Cole dois links por produto: primeiro o link afiliado, depois o link direto do produto.');
       return;
     }
 
-    const entries = [];
-    for (let index = 0; index < lines.length; index += 2) {
-      entries.push({ affiliateUrl: lines[index], productUrl: lines[index + 1] });
+    const entries: Array<{ affiliateUrl: string; productUrl: string }> = [];
+    if (shopeeImportMode === 'products') {
+      for (let index = 0; index < lines.length; index += 2) {
+        entries.push({ affiliateUrl: lines[index], productUrl: lines[index + 1] });
+      }
     }
 
     setIsImportingShopee(true);
     setShopeeImportResults([]);
     const results: typeof shopeeImportResults = [];
     try {
-      for (let offset = 0; offset < entries.length; offset += 5) {
+      if (shopeeImportMode === 'shop') {
         const response = await fetch('/api/admin/shopee-import', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entries: entries.slice(offset, offset + 5) }),
+          body: JSON.stringify({ mode: 'shop', shopUrl: lines[0], limit: shopeeShopLimit }),
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || 'Falha ao importar o lote.');
+        if (!response.ok) throw new Error(payload.error || 'Falha ao consultar ofertas da loja.');
         results.push(...(payload.results || []));
         setShopeeImportResults([...results]);
+      } else {
+        for (let offset = 0; offset < entries.length; offset += 5) {
+          const response = await fetch('/api/admin/shopee-import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries: entries.slice(offset, offset + 5) }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.error || 'Falha ao importar o lote.');
+          results.push(...(payload.results || []));
+          setShopeeImportResults([...results]);
+        }
       }
       if (results.some((result) => result.status === 'imported')) await fetchData();
     } catch (error) {
@@ -409,15 +429,28 @@ const fetchData = async () => {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Importar produtos Shopee</h2>
-              <p className="text-sm text-gray-600 mt-1">Para cada produto, cole o link afiliado e, logo abaixo, a URL direta do produto. Repita os pares.</p>
+              <h2 className="text-lg font-bold text-gray-900">Importar da Shopee</h2>
+              <div className="flex gap-2 mt-3" role="group" aria-label="Tipo de importação Shopee">
+                <button type="button" onClick={() => setShopeeImportMode('products')} className={`px-3 py-1.5 border rounded-lg text-sm ${shopeeImportMode === 'products' ? 'border-orange-600 bg-orange-50 text-orange-800' : 'border-gray-300 text-gray-600'}`}>Produtos</button>
+                <button type="button" onClick={() => setShopeeImportMode('shop')} className={`px-3 py-1.5 border rounded-lg text-sm ${shopeeImportMode === 'shop' ? 'border-orange-600 bg-orange-50 text-orange-800' : 'border-gray-300 text-gray-600'}`}>Ofertas da loja</button>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">{shopeeImportMode === 'shop' ? 'Cole o link de uma loja para buscar e importar ofertas afiliadas.' : 'Para cada produto, cole o link afiliado e, logo abaixo, a URL direta do produto. Repita os pares.'}</p>
             </div>
+            {shopeeImportMode === 'shop' && (
+              <label className="block text-sm text-gray-700">Quantidade máxima
+                <select value={shopeeShopLimit} onChange={(event) => setShopeeShopLimit(Number(event.target.value))} disabled={isImportingShopee} className="ml-3 border border-gray-300 rounded-lg px-2 py-1">
+                  <option value={10}>10 ofertas</option>
+                  <option value={20}>20 ofertas</option>
+                  <option value={50}>50 ofertas</option>
+                </select>
+              </label>
+            )}
             <textarea
               rows={7}
               value={shopeeImportUrls}
               onChange={(event) => setShopeeImportUrls(event.target.value)}
               disabled={isImportingShopee}
-              placeholder="https://s.shopee.com.br/..."
+              placeholder={shopeeImportMode === 'shop' ? 'https://s.shopee.com.br/...' : 'https://s.shopee.com.br/...'}
               className="w-full border border-gray-300 rounded-lg p-3 text-sm font-mono disabled:bg-gray-100"
             />
             {shopeeImportResults.length > 0 && (

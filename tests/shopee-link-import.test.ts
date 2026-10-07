@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ShopeeIntegration } from '../integrations/shopee/ShopeeIntegration';
-import { fetchShopeeProductDetails, parseShopeeProductPage, resolveShopeeAffiliateUrl } from '../services/shopeeLinkImport';
+import { fetchShopeeProductDetails, parseShopeeProductPage, resolveShopeeAffiliateUrl, resolveShopeeShopId } from '../services/shopeeLinkImport';
 import { isMarketplaceProtectedFromAutomaticDeletion } from '../services/productPartnerVerifierAgent';
 
 test('extracts product details from Shopee Open Graph metadata', async () => {
@@ -223,6 +223,64 @@ test('queries the official affiliate API using exact shopId and itemId filters',
 
   assert.equal(product?.externalProductId, '23994392192');
   assert.equal(product?.name, 'Produto por IDs Shopee');
+});
+
+test('resolves Shopee short links to a shop ID and rejects external redirects', async () => {
+  const shopId = await resolveShopeeShopId('https://s.shopee.com.br/store-short-link', async () => new Response(null, {
+    status: 302,
+    headers: { location: 'https://shopee.com.br/shop/1543476826?mmp_pid=affiliate' },
+  }));
+  assert.equal(shopId, '1543476826');
+
+  await assert.rejects(
+    resolveShopeeShopId('https://s.shopee.com.br/store-short-link', async () => new Response(null, {
+      status: 302,
+      headers: { location: 'https://example.com/shop/123' },
+    })),
+    /fora dos domínios Shopee/,
+  );
+});
+
+test('queries affiliate offers by shop ID and validates returned products', async (t) => {
+  const previousAppId = process.env.SHOPEE_APP_ID;
+  const previousSecret = process.env.SHOPEE_SECRET;
+  process.env.SHOPEE_APP_ID = 'test-app-id';
+  process.env.SHOPEE_SECRET = 'test-secret';
+  t.after(() => {
+    if (previousAppId === undefined) delete process.env.SHOPEE_APP_ID;
+    else process.env.SHOPEE_APP_ID = previousAppId;
+    if (previousSecret === undefined) delete process.env.SHOPEE_SECRET;
+    else process.env.SHOPEE_SECRET = previousSecret;
+  });
+
+  const integration = new ShopeeIntegration();
+  const products = await integration.getProductsByShopId('1543476826', 10, async (_input, init) => {
+    const requestBody = JSON.parse(String(init?.body));
+    assert.match(requestBody.query, /productOfferV2\(shopId: 1543476826, page: 1, limit: 10/);
+    assert.doesNotMatch(requestBody.query, /itemId:/);
+    return new Response(JSON.stringify({ data: { productOfferV2: { nodes: [{
+      shopId: 1543476826,
+      itemId: 456,
+      productName: 'Oferta da loja teste',
+      price: 29.9,
+      imageUrl: 'https://down-br.img.susercontent.com/product.png',
+      productLink: 'https://shopee.com.br/product/1543476826/456',
+      offerLink: 'https://s.shopee.com.br/affiliate-offer',
+      commissionRate: 10,
+    }, {
+      shopId: 999,
+      itemId: 789,
+      productName: 'Produto de outra loja',
+      price: 19.9,
+      imageUrl: 'https://down-br.img.susercontent.com/other.png',
+      productLink: 'https://shopee.com.br/product/999/789',
+      offerLink: 'https://s.shopee.com.br/other-offer',
+    }] } } }), { headers: { 'content-type': 'application/json' } });
+  });
+
+  assert.equal(products.length, 1);
+  assert.equal(products[0].externalProductId, '456');
+  assert.equal(products[0].affiliateUrl, 'https://s.shopee.com.br/affiliate-offer');
 });
 
 test('does not mark a product unavailable when keyword search cannot confirm its ID', async (t) => {

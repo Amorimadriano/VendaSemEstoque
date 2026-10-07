@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { ShopeeIntegration } from '@/integrations/shopee/ShopeeIntegration';
 import { inferCategory } from '@/services/productCategory';
-import { fetchShopeeProductDetails, getShopeeProductIdentifiers, resolveShopeeAffiliateUrl } from '@/services/shopeeLinkImport';
+import { fetchShopeeProductDetails, getShopeeProductIdentifiers, resolveShopeeAffiliateUrl, resolveShopeeShopId } from '@/services/shopeeLinkImport';
+import { ExternalProduct } from '@/types';
 
 export const runtime = 'edge';
 
@@ -12,6 +13,9 @@ function toSlug(value: string) {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
+  const mode = body && typeof body === 'object' && (body as { mode?: unknown }).mode === 'shop' ? 'shop' : 'products';
+  const rawShopUrl: unknown = body && typeof body === 'object' ? (body as { shopUrl?: unknown }).shopUrl : undefined;
+  const rawLimit: unknown = body && typeof body === 'object' ? (body as { limit?: unknown }).limit : undefined;
   const rawEntries: unknown = body && typeof body === 'object' ? (body as { entries?: unknown }).entries : undefined;
   const rawUrls: unknown = body && typeof body === 'object' ? (body as { urls?: unknown }).urls : undefined;
   const entries: Array<{ affiliateUrl: string; productUrl?: string }> = Array.isArray(rawEntries)
@@ -29,8 +33,26 @@ export async function POST(request: Request) {
       .map((affiliateUrl) => ({ affiliateUrl }))
     : [];
 
-  if (!entries.length) return NextResponse.json({ error: 'Informe pares de link afiliado e URL direta Shopee.' }, { status: 400 });
-  if (entries.length > 5) return NextResponse.json({ error: 'Importe no máximo cinco produtos por lote.' }, { status: 400 });
+  if (mode === 'products' && !entries.length) return NextResponse.json({ error: 'Informe pares de link afiliado e URL direta Shopee.' }, { status: 400 });
+  if (mode === 'products' && entries.length > 5) return NextResponse.json({ error: 'Importe no máximo cinco produtos por lote.' }, { status: 400 });
+  if (mode === 'shop' && (typeof rawShopUrl !== 'string' || !rawShopUrl.trim())) {
+    return NextResponse.json({ error: 'Informe o link da loja Shopee.' }, { status: 400 });
+  }
+
+  let shopProducts: ExternalProduct[] = [];
+  const shopeeIntegration = new ShopeeIntegration();
+  if (mode === 'shop') {
+    try {
+      const shopId = await resolveShopeeShopId(rawShopUrl as string);
+      const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) ? rawLimit : 20;
+      shopProducts = await shopeeIntegration.getProductsByShopId(shopId, limit);
+      if (!shopProducts.length) {
+        return NextResponse.json({ error: 'A API da Shopee não encontrou ofertas importáveis para esta loja.' }, { status: 404 });
+      }
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar ofertas da loja.' }, { status: 422 });
+    }
+  }
 
   const supabase = getSupabase();
   const now = new Date().toISOString();
@@ -51,12 +73,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: marketplaceError?.message || 'Não foi possível preparar a Shopee.' }, { status: 500 });
   }
 
-  const shopeeIntegration = new ShopeeIntegration();
+  const importEntries: Array<{ affiliateUrl: string; productUrl?: string; product?: ExternalProduct }> = mode === 'shop'
+    ? shopProducts.map((product) => ({ affiliateUrl: product.affiliateUrl, productUrl: product.originalUrl, product }))
+    : entries;
   const results = [];
-  for (const entry of entries) {
+  for (const entry of importEntries) {
     const { affiliateUrl, productUrl } = entry;
     try {
-      const item = await resolveShopeeAffiliateUrl(affiliateUrl, async (externalProductId) => {
+      const item = entry.product
+        ? {
+          affiliateUrl: entry.product.affiliateUrl,
+          productUrl: entry.product.originalUrl,
+          externalProductId: entry.product.externalProductId,
+          name: entry.product.name,
+          description: entry.product.description,
+          imageUrl: entry.product.imageUrl,
+          price: entry.product.price,
+          oldPrice: entry.product.oldPrice,
+          commissionPercentage: entry.product.commissionPercentage,
+        }
+        : await resolveShopeeAffiliateUrl(affiliateUrl, async (externalProductId) => {
         if (productUrl) {
           const identifiers = getShopeeProductIdentifiers(productUrl);
           if (identifiers) {
@@ -95,7 +131,7 @@ export async function POST(request: Request) {
         const identifiers = getShopeeProductIdentifiers(productUrl);
         if (!identifiers) return null;
         return fetchShopeeProductDetails(identifiers.shopId, identifiers.itemId, productUrl);
-      }, undefined, productUrl);
+        }, undefined, productUrl);
       const inferredCategory = inferCategory(item.name, 'Shopee');
       const { data: existingCategory, error: existingCategoryError } = await supabase
         .from('categories')

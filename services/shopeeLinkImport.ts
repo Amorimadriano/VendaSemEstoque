@@ -282,6 +282,42 @@ export function getShopeeProductIdentifiers(productUrl: string) {
   }
 }
 
+export async function resolveShopeeShopId(shopUrl: string, fetcher: typeof fetch = fetch) {
+  let currentUrl: URL;
+  try {
+    currentUrl = new URL(shopUrl);
+  } catch {
+    throw new Error('Link de loja inválido.');
+  }
+  if (!isAllowedShopeeUrl(currentUrl)) throw new Error('Informe um link HTTPS de loja Shopee.');
+
+  const getShopId = (url: URL) => url.pathname.match(/\/shop\/(\d+)/i)?.[1];
+  const directShopId = getShopId(currentUrl);
+  if (directShopId) return directShopId;
+
+  for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
+    const response = await fetcher(currentUrl, {
+      redirect: 'manual',
+      headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'Mozilla/5.0 (compatible; VendaSemEstoque/1.0)' },
+    });
+    if (!REDIRECT_STATUSES.has(response.status)) {
+      if (!response.ok) throw new Error(`A Shopee respondeu com HTTP ${response.status}.`);
+      const shopId = getShopId(currentUrl);
+      if (shopId) return shopId;
+      break;
+    }
+
+    const location = response.headers.get('location');
+    if (!location || redirectCount === 5) throw new Error('Redirecionamento da Shopee inválido ou excedeu o limite.');
+    currentUrl = new URL(location, currentUrl);
+    if (!isAllowedShopeeUrl(currentUrl)) throw new Error('O link redirecionou para fora dos domínios Shopee permitidos.');
+    const shopId = getShopId(currentUrl);
+    if (shopId) return shopId;
+  }
+
+  throw new Error('O link informado não aponta para uma loja Shopee.');
+}
+
 function findShopeeItem(payload: unknown): ShopeeItemResponse | null {
   if (!payload || typeof payload !== 'object') return null;
   const root = payload as Record<string, unknown>;

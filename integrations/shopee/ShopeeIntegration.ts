@@ -453,6 +453,57 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     return node ? this.convertNode(node) : null;
   }
 
+  async getProductsByShopId(shopId: string, limit = 20, fetcher: typeof fetch = fetch): Promise<ExternalProduct[]> {
+    if (!/^\d+$/.test(shopId)) throw new Error('ID da loja Shopee inválido.');
+    if (!this.hasCredentials()) throw new Error('Configure SHOPEE_APP_ID e SHOPEE_SECRET para importar ofertas de uma loja.');
+
+    const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 50);
+    const gqlQuery = `
+      query {
+        productOfferV2(shopId: ${shopId}, page: 1, limit: ${safeLimit}) {
+          nodes {
+            itemId
+            shopId
+            productName
+            price
+            priceMin
+            priceMax
+            imageUrl
+            productLink
+            offerLink
+            commissionRate
+            sales
+            ratingStar
+          }
+        }
+      }
+    `;
+    const payload = JSON.stringify({ query: gqlQuery });
+    const response = await fetcher('https://open-api.affiliate.shopee.com.br/graphql', {
+      method: 'POST',
+      headers: await this.generateAuthHeaders(payload),
+      body: payload,
+    });
+    const responseText = await response.text();
+    if (!responseText.trim().startsWith('{')) {
+      throw new Error(`Shopee Affiliate API retornou uma resposta não JSON (HTTP ${response.status}).`);
+    }
+
+    const result = JSON.parse(responseText) as {
+      data?: { productOfferV2?: { nodes?: ShopeeNode[] } };
+      errors?: Array<{ message?: string }>;
+    };
+    if (!response.ok || result.errors?.length) {
+      throw new Error(result.errors?.[0]?.message || `Shopee Affiliate API retornou HTTP ${response.status}.`);
+    }
+
+    return (result.data?.productOfferV2?.nodes || [])
+      .filter((node) => String(node.shopId || '') === shopId)
+      .map((node) => this.convertNode(node))
+      .filter((product): product is ExternalProduct => product !== null)
+      .slice(0, safeLimit);
+  }
+
   async verifyProduct(externalId: string): Promise<ProductVerificationResult> {
     const id = String(externalId || '').trim();
     if (!id) return { status: 'NOT_FOUND', reason: 'ID ausente' };
