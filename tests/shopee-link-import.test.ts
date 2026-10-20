@@ -241,6 +241,17 @@ test('resolves Shopee short links to a shop ID and rejects external redirects', 
   );
 });
 
+test('resolves a Shopee product short link to its shop ID', async () => {
+  const shopId = await resolveShopeeShopId('https://s.shopee.com.br/product-short-link', async () => new Response(null, {
+    status: 302,
+    headers: { location: 'https://shopee.com.br/opaanlp/1876515327/58216689260?__mobile__=1' },
+  }));
+  assert.equal(shopId, '1876515327');
+
+  const directProductShopId = await resolveShopeeShopId('https://shopee.com.br/CeraVe-i.1876515327.58216689260');
+  assert.equal(directProductShopId, '1876515327');
+});
+
 test('queries affiliate offers by shop ID and validates returned products', async (t) => {
   const previousAppId = process.env.SHOPEE_APP_ID;
   const previousSecret = process.env.SHOPEE_SECRET;

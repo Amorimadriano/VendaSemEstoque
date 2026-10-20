@@ -434,7 +434,7 @@ const fetchData = async () => {
                 <button type="button" onClick={() => setShopeeImportMode('products')} className={`px-3 py-1.5 border rounded-lg text-sm ${shopeeImportMode === 'products' ? 'border-orange-600 bg-orange-50 text-orange-800' : 'border-gray-300 text-gray-600'}`}>Produtos</button>
                 <button type="button" onClick={() => setShopeeImportMode('shop')} className={`px-3 py-1.5 border rounded-lg text-sm ${shopeeImportMode === 'shop' ? 'border-orange-600 bg-orange-50 text-orange-800' : 'border-gray-300 text-gray-600'}`}>Ofertas da loja</button>
               </div>
-              <p className="text-sm text-gray-600 mt-2">{shopeeImportMode === 'shop' ? 'Cole o link de uma loja para buscar e importar ofertas afiliadas.' : 'Para cada produto, cole o link afiliado e, logo abaixo, a URL direta do produto. Repita os pares.'}</p>
+              <p className="text-sm text-gray-600 mt-2">{shopeeImportMode === 'shop' ? 'Cole o link da loja ou de um produto dela para buscar e importar ofertas afiliadas.' : 'Para cada produto, cole o link afiliado e, logo abaixo, a URL direta do produto. Repita os pares.'}</p>
             </div>
             {shopeeImportMode === 'shop' && (
               <label className="block text-sm text-gray-700">Quantidade máxima
@@ -450,7 +450,7 @@ const fetchData = async () => {
               value={shopeeImportUrls}
               onChange={(event) => setShopeeImportUrls(event.target.value)}
               disabled={isImportingShopee}
-              placeholder={shopeeImportMode === 'shop' ? 'https://s.shopee.com.br/...' : 'https://s.shopee.com.br/...'}
+              placeholder={shopeeImportMode === 'shop' ? 'Link da loja ou de um produto dela' : 'https://s.shopee.com.br/...'}
               className="w-full border border-gray-300 rounded-lg p-3 text-sm font-mono disabled:bg-gray-100"
             />
             {shopeeImportResults.length > 0 && (

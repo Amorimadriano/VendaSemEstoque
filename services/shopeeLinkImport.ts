@@ -291,7 +291,11 @@ export async function resolveShopeeShopId(shopUrl: string, fetcher: typeof fetch
   }
   if (!isAllowedShopeeUrl(currentUrl)) throw new Error('Informe um link HTTPS de loja Shopee.');
 
-  const getShopId = (url: URL) => url.pathname.match(/\/shop\/(\d+)/i)?.[1];
+  const getShopId = (url: URL) =>
+    url.pathname.match(/\/shop\/(\d+)/i)?.[1]
+    || url.pathname.match(/\/product\/(\d+)\/\d+/i)?.[1]
+    || url.pathname.match(/i\.(\d+)\.\d+/i)?.[1]
+    || url.pathname.match(/\/opaanlp\/(\d+)\/\d+/i)?.[1];
   const directShopId = getShopId(currentUrl);
   if (directShopId) return directShopId;
 
