@@ -38,26 +38,29 @@ test('normalizes hashtag input and rejects invalid hashtag syntax', () => {
   assert.equal(normalizeInstagramHashtag('a'.repeat(31)), null);
 });
 
-test('maps unique profile authors from official hashtag media and validates source links', () => {
-  const profiles = mapInstagramHashtagMedia([
-    { username: 'Creator.One', permalink: 'https://www.instagram.com/p/ABC123/', timestamp: '2026-10-01T12:00:00+0000' },
-    { username: 'creator.one', permalink: 'https://www.instagram.com/reel/DEF456/' },
-    { username: 'other_creator', permalink: 'https://example.com/fake' },
-    { username: 'explore', permalink: 'https://www.instagram.com/p/XYZ789/' },
-    { permalink: 'https://www.instagram.com/p/NONAME/' },
+test('maps unique hashtag posts and keeps only Instagram post links', () => {
+  const posts = mapInstagramHashtagMedia([
+    { id: '1', permalink: 'https://www.instagram.com/p/ABC123/', caption: '  Look   do dia ', media_type: 'IMAGE', timestamp: '2026-10-01T12:00:00+0000' },
+    { id: '1', permalink: 'https://www.instagram.com/p/ABC123/' },
+    { id: '2', permalink: 'https://www.instagram.com/reel/DEF456/' },
+    { id: '3', permalink: 'https://example.com/p/fake/' },
+    { id: '4', permalink: 'javascript:alert(1)' },
+    { permalink: 'https://www.instagram.com/p/NOID/' },
   ]);
 
-  assert.deepEqual(profiles, [
+  assert.deepEqual(posts, [
     {
-      username: 'creator.one',
-      profileUrl: 'https://www.instagram.com/creator.one/',
-      sourceUrl: 'https://www.instagram.com/p/ABC123/',
+      id: '1',
+      permalink: 'https://www.instagram.com/p/ABC123/',
+      caption: 'Look do dia',
+      mediaType: 'IMAGE',
       timestamp: '2026-10-01T12:00:00+0000',
     },
     {
-      username: 'other_creator',
-      profileUrl: 'https://www.instagram.com/other_creator/',
-      sourceUrl: undefined,
+      id: '2',
+      permalink: 'https://www.instagram.com/reel/DEF456/',
+      caption: undefined,
+      mediaType: undefined,
       timestamp: undefined,
     },
   ]);

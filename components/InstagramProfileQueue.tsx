@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { ExternalLink, Instagram, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
-import type { InstagramProfileStatus } from '@/lib/instagramProfileCandidate';
+import type { InstagramHashtagPost, InstagramProfileStatus } from '@/lib/instagramProfileCandidate';
 
 type Candidate = {
   id: string;
@@ -12,13 +12,6 @@ type Candidate = {
   notes: string | null;
   status: InstagramProfileStatus;
   created_at: string;
-};
-
-type DiscoveredProfile = {
-  username: string;
-  profileUrl: string;
-  sourceUrl?: string;
-  timestamp?: string;
 };
 
 const STATUS_LABELS: Record<InstagramProfileStatus, string> = {
@@ -32,8 +25,8 @@ export default function InstagramProfileQueue() {
   const [profile, setProfile] = useState('');
   const [notes, setNotes] = useState('');
   const [hashtag, setHashtag] = useState('');
-  const [discoveredProfiles, setDiscoveredProfiles] = useState<DiscoveredProfile[]>([]);
-  const [selectedDiscoveredUsernames, setSelectedDiscoveredUsernames] = useState<string[]>([]);
+  const [discoveredPosts, setDiscoveredPosts] = useState<InstagramHashtagPost[]>([]);
+  const [searchedHashtag, setSearchedHashtag] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | InstagramProfileStatus>('ALL');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [reviewIds, setReviewIds] = useState<string[]>([]);
@@ -41,7 +34,6 @@ export default function InstagramProfileQueue() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [addingDiscovered, setAddingDiscovered] = useState(false);
   const [error, setError] = useState('');
 
   async function loadCandidates() {
@@ -91,8 +83,8 @@ export default function InstagramProfileQueue() {
     if (!hashtag.trim()) return;
     setSearching(true);
     setError('');
-    setDiscoveredProfiles([]);
-    setSelectedDiscoveredUsernames([]);
+    setDiscoveredPosts([]);
+    setSearchedHashtag('');
     try {
       const response = await fetch('/api/admin/instagram-profile-candidates/discover', {
         method: 'POST',
@@ -101,49 +93,13 @@ export default function InstagramProfileQueue() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Falha ao pesquisar hashtag.');
-      setDiscoveredProfiles(result.profiles || []);
+      setDiscoveredPosts(result.posts || []);
+      setSearchedHashtag(result.hashtag || hashtag.replace(/^#/, ''));
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : 'Falha ao pesquisar hashtag.');
     } finally {
       setSearching(false);
     }
-  }
-
-  async function addSelectedDiscovered() {
-    const selected = discoveredProfiles.filter((item) => selectedDiscoveredUsernames.includes(item.username));
-    if (!selected.length) return;
-    setAddingDiscovered(true);
-    setError('');
-    const added: Candidate[] = [];
-    let alreadyAdded = 0;
-    let failed = 0;
-
-    for (const item of selected) {
-      try {
-        const response = await fetch('/api/admin/instagram-profile-candidates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ profile: item.username, notes: `Encontrado pela hashtag #${hashtag.replace(/^#/, '')}` }),
-        });
-        const result = await response.json();
-        if (response.status === 409) {
-          alreadyAdded += 1;
-        } else if (!response.ok) {
-          failed += 1;
-        } else {
-          added.push(result.candidate);
-        }
-      } catch {
-        failed += 1;
-      }
-    }
-
-    if (added.length) setCandidates((current) => [...added.reverse(), ...current]);
-    setSelectedDiscoveredUsernames([]);
-    setAddingDiscovered(false);
-    if (failed) setError(`${added.length} adicionado(s), ${alreadyAdded} já existente(s), ${failed} falha(s).`);
-    else if (alreadyAdded) setError(`${added.length} adicionado(s); ${alreadyAdded} já estava(m) na fila.`);
-    else setDiscoveredProfiles([]);
   }
 
   async function updateStatus(candidate: Candidate, status: InstagramProfileStatus) {
@@ -211,9 +167,6 @@ export default function InstagramProfileQueue() {
   }
 
   const visibleCandidates = candidates.filter((candidate) => statusFilter === 'ALL' || candidate.status === statusFilter);
-  const queueUsernames = new Set(candidates.map((candidate) => candidate.username));
-  const newDiscoveredProfiles = discoveredProfiles.filter((item) => !queueUsernames.has(item.username));
-  const allNewProfilesSelected = newDiscoveredProfiles.length > 0 && newDiscoveredProfiles.every((item) => selectedDiscoveredUsernames.includes(item.username));
   const visibleIds = visibleCandidates.map((candidate) => candidate.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
   const currentReview = candidates.find((candidate) => candidate.id === reviewIds[reviewIndex]);
@@ -249,7 +202,7 @@ export default function InstagramProfileQueue() {
       <div className="border-b border-gray-100 p-4">
         <form onSubmit={searchHashtag} className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1">
-            <label htmlFor="instagram-discovery-hashtag" className="mb-1 block text-xs font-semibold text-gray-700">Descobrir perfis por hashtag pública</label>
+            <label htmlFor="instagram-discovery-hashtag" className="mb-1 block text-xs font-semibold text-gray-700">Descobrir publicações por hashtag pública</label>
             <input
               id="instagram-discovery-hashtag"
               value={hashtag}
@@ -265,50 +218,22 @@ export default function InstagramProfileQueue() {
             {searching ? 'Pesquisando...' : 'Pesquisar'}
           </button>
         </form>
-        <p className="mt-2 text-xs text-gray-500">A Meta retorna até 50 publicações recentes com essa hashtag. Só perfis selecionados entram na fila; o follow continua manual.</p>
+        <p className="mt-2 text-xs text-gray-500">A Meta retorna publicações das últimas 24h com essa hashtag, sem o @ do autor. Abra a publicação e adicione o perfil manualmente abaixo; o follow continua manual.</p>
 
-        {discoveredProfiles.length > 0 && (
+        {searchedHashtag && (
           <div className="mt-4 border-t border-gray-100 pt-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-gray-800">{discoveredProfiles.length} perfil(is) encontrado(s) em #{hashtag.replace(/^#/, '')}</p>
-              {selectedDiscoveredUsernames.length > 0 && (
-                <button type="button" onClick={() => void addSelectedDiscovered()} disabled={addingDiscovered} className="rounded-md bg-pink-600 px-3 py-2 text-xs font-semibold text-white hover:bg-pink-700 disabled:opacity-50">
-                  {addingDiscovered ? 'Adicionando...' : `Adicionar ${selectedDiscoveredUsernames.length} à fila`}
-                </button>
-              )}
-            </div>
-            {newDiscoveredProfiles.length > 0 && (
-              <label className="mb-2 flex items-center gap-2 text-xs font-medium text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={allNewProfilesSelected}
-                  onChange={(event) => setSelectedDiscoveredUsernames(event.target.checked ? newDiscoveredProfiles.map((item) => item.username) : [])}
-                  className="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                />
-                Selecionar perfis ainda não adicionados
-              </label>
-            )}
-            <ul className="max-h-64 divide-y divide-gray-100 overflow-y-auto">
-              {discoveredProfiles.map((item) => {
-                const alreadyInQueue = queueUsernames.has(item.username);
-                return (
-                  <li key={item.username} className="flex items-center gap-3 py-2">
-                    {!alreadyInQueue ? (
-                      <input
-                        type="checkbox"
-                        aria-label={`Selecionar @${item.username}`}
-                        checked={selectedDiscoveredUsernames.includes(item.username)}
-                        onChange={() => setSelectedDiscoveredUsernames((current) => current.includes(item.username) ? current.filter((username) => username !== item.username) : [...current, item.username])}
-                        className="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                      />
-                    ) : <span className="w-4 text-center text-xs text-emerald-600">✓</span>}
-                    <a href={item.profileUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-gray-800 hover:text-pink-700">@{item.username}</a>
-                    {item.sourceUrl && <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-1 text-xs text-gray-500 hover:text-pink-700">Publicação <ExternalLink className="h-3 w-3" /></a>}
-                    {alreadyInQueue && <span className="ml-auto text-xs text-emerald-700">Já na fila</span>}
+            <p className="mb-2 text-sm font-semibold text-gray-800">{discoveredPosts.length} publicação(ões) recente(s) em #{searchedHashtag}</p>
+            {discoveredPosts.length > 0 && (
+              <ul className="max-h-64 divide-y divide-gray-100 overflow-y-auto">
+                {discoveredPosts.map((post) => (
+                  <li key={post.id} className="flex items-center gap-3 py-2">
+                    <p className="min-w-0 flex-1 truncate text-sm text-gray-700">{post.caption || 'Sem legenda'}</p>
+                    {post.timestamp && <span className="shrink-0 text-xs text-gray-400">{new Date(post.timestamp).toLocaleString('pt-BR')}</span>}
+                    <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-pink-700 hover:text-pink-800">Abrir <ExternalLink className="h-3 w-3" /></a>
                   </li>
-                );
-              })}
-            </ul>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </div>

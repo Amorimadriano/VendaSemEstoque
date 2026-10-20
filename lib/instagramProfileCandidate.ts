@@ -6,10 +6,11 @@ export const INSTAGRAM_PROFILE_STATUSES = [
 
 export type InstagramProfileStatus = (typeof INSTAGRAM_PROFILE_STATUSES)[number];
 
-export type InstagramHashtagProfile = {
-  username: string;
-  profileUrl: string;
-  sourceUrl?: string;
+export type InstagramHashtagPost = {
+  id: string;
+  permalink: string;
+  caption?: string;
+  mediaType?: string;
   timestamp?: string;
 };
 
@@ -66,38 +67,39 @@ export function normalizeInstagramHashtag(input: string): string | null {
   return hashtag;
 }
 
-export function mapInstagramHashtagMedia(media: unknown): InstagramHashtagProfile[] {
+// Meta's hashtag endpoints never expose the author's username, so only post links can be returned.
+export function mapInstagramHashtagMedia(media: unknown): InstagramHashtagPost[] {
   if (!Array.isArray(media)) return [];
 
   const seen = new Set<string>();
-  const profiles: InstagramHashtagProfile[] = [];
+  const posts: InstagramHashtagPost[] = [];
   for (const item of media) {
     if (!item || typeof item !== 'object') continue;
     const record = item as Record<string, unknown>;
-    if (typeof record.username !== 'string') continue;
-    const profile = normalizeInstagramProfile(record.username);
-    if (!profile || seen.has(profile.username)) continue;
-    seen.add(profile.username);
+    if (typeof record.id !== 'string' || typeof record.permalink !== 'string' || seen.has(record.id)) continue;
 
-    let sourceUrl: string | undefined;
-    if (typeof record.permalink === 'string') {
-      try {
-        const permalink = new URL(record.permalink);
-        if (
-          ['instagram.com', 'www.instagram.com'].includes(permalink.hostname.toLowerCase()) &&
-          /^\/(?:p|reel|tv)\/[^/]+\/?$/i.test(permalink.pathname)
-        ) {
-          sourceUrl = permalink.toString();
-        }
-      } catch {}
+    let permalink: URL;
+    try {
+      permalink = new URL(record.permalink);
+    } catch {
+      continue;
     }
+    if (
+      permalink.protocol !== 'https:' ||
+      !['instagram.com', 'www.instagram.com'].includes(permalink.hostname.toLowerCase()) ||
+      !/^\/(?:p|reel|tv)\/[^/]+\/?$/i.test(permalink.pathname)
+    ) continue;
+    seen.add(record.id);
 
-    profiles.push({
-      ...profile,
-      sourceUrl,
+    const caption = typeof record.caption === 'string' ? record.caption.replace(/\s+/g, ' ').trim() : '';
+    posts.push({
+      id: record.id,
+      permalink: permalink.toString(),
+      caption: caption ? caption.slice(0, 140) : undefined,
+      mediaType: typeof record.media_type === 'string' ? record.media_type : undefined,
       timestamp: typeof record.timestamp === 'string' ? record.timestamp : undefined,
     });
   }
 
-  return profiles;
+  return posts;
 }

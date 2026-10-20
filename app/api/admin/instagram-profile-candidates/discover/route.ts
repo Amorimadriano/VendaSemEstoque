@@ -7,7 +7,7 @@ export const runtime = 'edge';
 type MetaGraphResponse = {
   id?: string;
   data?: unknown;
-  error?: { message?: string };
+  error?: { message?: string; code?: number };
 };
 
 async function getGraphData(url: URL, token: string): Promise<MetaGraphResponse> {
@@ -15,7 +15,12 @@ async function getGraphData(url: URL, token: string): Promise<MetaGraphResponse>
     headers: { Authorization: `Bearer ${token}` },
   });
   const result = await response.json().catch(() => ({})) as MetaGraphResponse;
-  if (!response.ok) throw new Error(result.error?.message || `Meta Graph API retornou HTTP ${response.status}.`);
+  if (!response.ok) {
+    if (result.error?.code === 10 && /Public Content Access/i.test(result.error.message || '')) {
+      throw new Error('A busca por hashtag precisa do recurso "Instagram Public Content Access" aprovado no App Review da Meta. Enquanto isso, adicione perfis manualmente abaixo.');
+    }
+    throw new Error(result.error?.message || `Meta Graph API retornou HTTP ${response.status}.`);
+  }
   return result;
 }
 
@@ -50,16 +55,16 @@ export async function POST(request: NextRequest) {
     const hashtagSearch = await getGraphData(searchUrl, accessToken);
     const hashtagRecord = Array.isArray(hashtagSearch.data) ? hashtagSearch.data[0] as { id?: string } | undefined : undefined;
     const hashtagId = hashtagRecord?.id;
-    if (!hashtagId) return NextResponse.json({ hashtag, profiles: [] });
+    if (!hashtagId) return NextResponse.json({ hashtag, posts: [] });
 
     const mediaUrl = new URL(`https://graph.facebook.com/v26.0/${encodeURIComponent(hashtagId)}/recent_media`);
     mediaUrl.searchParams.set('user_id', instagramAccountId);
-    mediaUrl.searchParams.set('fields', 'username,permalink,timestamp');
+    mediaUrl.searchParams.set('fields', 'id,permalink,caption,media_type,timestamp');
     mediaUrl.searchParams.set('limit', '50');
     const recentMedia = await getGraphData(mediaUrl, accessToken);
-    const profiles = mapInstagramHashtagMedia(recentMedia.data);
+    const posts = mapInstagramHashtagMedia(recentMedia.data);
 
-    return NextResponse.json({ hashtag, profiles });
+    return NextResponse.json({ hashtag, posts });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha ao consultar a Meta Graph API.';
     return NextResponse.json({ error: message }, { status: 502 });
