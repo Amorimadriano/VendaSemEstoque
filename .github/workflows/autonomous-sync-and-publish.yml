@@ -1,4 +1,4 @@
-name: Autonomous Marketplace Sync and Facebook Publish
+name: Marketplace Sync and Instagram Auto-Publish
 
 on:
   schedule:
@@ -6,8 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  autonomous_workflow:
+  instagram_auto_publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: instagram-marketplace-auto-publish
+      cancel-in-progress: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Execute Autonomous Marketplace Sync & Auto-Publish
+      - name: Sync marketplaces and publish to Instagram
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://vgduzuvnhyebymhywmse.supabase.co' }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -34,7 +37,6 @@ jobs:
           SHOPEE_SECRET: ${{ secrets.SHOPEE_SECRET }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
           META_INSTAGRAM_ACCOUNT_ID: ${{ secrets.META_INSTAGRAM_ACCOUNT_ID }}
-          META_FACEBOOK_PAGE_ID: ${{ secrets.META_FACEBOOK_PAGE_ID }}
           SITE_URL: ${{ vars.SITE_URL || 'https://venda-sem-estoque.pages.dev' }}
           PRODUCT_SEARCHES: ${{ vars.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa' }}
           PRODUCT_MIN_PRICE: ${{ vars.PRODUCT_MIN_PRICE || '20' }}
@@ -42,8 +44,20 @@ jobs:
           MARKETPLACES_TO_SYNC: ${{ vars.MARKETPLACES_TO_SYNC || 'amazon,aliexpress,shopee' }}
         run: |
           npx tsx -e "
-            import { runAutonomousMarketplaceAndPublishWorkflow } from './services/autonomousWorkflowAgent';
-            runAutonomousMarketplaceAndPublishWorkflow()
-              .then(res => console.log('Autonomous workflow finished:', JSON.stringify(res, null, 2)))
-              .catch(err => { console.error('Workflow error:', err); process.exit(1); });
+            import { runProductDiscovery } from './services/productDiscovery';
+            import { publishPendingChannelBatch } from './services/batchPublishService';
+
+            async function main() {
+              const sync = await runProductDiscovery();
+              console.log('Marketplace sync finished:', JSON.stringify(sync, null, 2));
+
+              const result = await publishPendingChannelBatch('instagram', { maxItems: 1 });
+              console.log('Instagram auto-publish finished:', JSON.stringify(result, null, 2));
+              if (result.failed > 0) process.exitCode = 1;
+            }
+
+            main().catch(err => {
+              console.error('Instagram workflow failed:', err);
+              process.exit(1);
+            });
           "
