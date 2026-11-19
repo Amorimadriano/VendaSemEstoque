@@ -101,3 +101,56 @@ test('normalizes percentage ratings and commissions from AliExpress products', a
     else process.env.ALIEXPRESS_TRACKING_ID = originalEnvironment.trackingId;
   }
 });
+
+test('verifies curated AliExpress IDs through the live product detail API', async (t) => {
+  const originalFetch = globalThis.fetch;
+  const keys = ['ALIEXPRESS_APP_KEY', 'ALIEXPRESS_APP_SECRET', 'ALIEXPRESS_TRACKING_ID'] as const;
+  const originalEnvironment = keys.map((key) => process.env[key]);
+  for (const key of keys) process.env[key] = 'test-credential';
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    keys.forEach((key, index) => {
+      if (originalEnvironment[index] === undefined) delete process.env[key];
+      else process.env[key] = originalEnvironment[index];
+    });
+  });
+
+  const id = '1005010672750703';
+  const product = {
+    product_id: id,
+    product_title: 'Produto retornado pela API oficial',
+    product_main_image_url: 'https://example.com/product.jpg',
+    target_sale_price: '42.90',
+    promotion_link: 'https://s.click.aliexpress.com/e/verified',
+  };
+  for (const scenario of [
+    { name: 'live data replaces static catalog data', products: [product], status: 'VERIFIED' },
+    { name: 'empty live results do not confirm a curated product', products: [], status: 'NOT_FOUND' },
+    { name: 'another product is not an exact ID verification', products: [{ ...product, product_id: '999999999' }], status: 'NOT_FOUND' },
+    { name: 'link generation failure returns ERROR rather than throwing', products: [{ ...product, promotion_link: '' }], status: 'ERROR' },
+  ]) {
+    await t.test(scenario.name, async () => {
+      const methods: string[] = [];
+      globalThis.fetch = async (input) => {
+        const method = new URL(String(input)).searchParams.get('method') || '';
+        methods.push(method);
+        if (method === 'aliexpress.affiliate.link.generate') return Response.json({ result: {} });
+        assert.equal(method, 'aliexpress.affiliate.productdetail.get');
+        return Response.json({
+          aliexpress_affiliate_productdetail_get_response: {
+            resp_result: { result: { products: { product: scenario.products } } },
+          },
+        });
+      };
+      const result = await new AliExpressIntegration().verifyProduct(id);
+      assert.equal(result.status, scenario.status);
+      assert.equal(methods[0], 'aliexpress.affiliate.productdetail.get');
+      if (result.status === 'VERIFIED') {
+        assert.equal(result.product?.price, 42.9);
+        assert.equal(result.product?.name, product.product_title);
+        assert.equal(methods.length, 1);
+      }
+      if (result.status === 'ERROR') assert.match(result.reason || '', /link promocional válido/);
+    });
+  }
+});

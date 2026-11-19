@@ -51,9 +51,10 @@ jobs:
               const sync = await runProductDiscovery();
               console.log('Marketplace sync finished:', JSON.stringify(sync, null, 2));
 
+              // Tenta publicar um item; imagens inválidas são registradas e ignoradas (até 50 candidatos).
               const result = await publishPendingChannelBatch('instagram', { maxItems: 1 });
               console.log('Instagram auto-publish finished:', JSON.stringify(result, null, 2));
-              if (result.failed > 0) process.exitCode = 1;
+              if (result.failed > 0 || (result.published === 0 && result.skipped > 0)) process.exitCode = 1;
             }
 
             main().catch(err => {

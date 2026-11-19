@@ -1,5 +1,6 @@
 import { getSupabase } from '@/lib/supabase';
 import { generateContentDraftForProduct } from '@/services/contentDraftGenerator';
+import { InstagramImageError } from '@/lib/instagramImage';
 import {
   publishApprovedInstagramContent,
   publishApprovedInstagramStory,
@@ -16,6 +17,7 @@ export interface BatchPublishItemResult {
   published: boolean;
   externalPostId?: string;
   error?: string;
+  skipped?: boolean;
 }
 
 export interface BatchPublishResult {
@@ -26,6 +28,7 @@ export interface BatchPublishResult {
   attempted: number;
   published: number;
   failed: number;
+  skipped: number;
   results: BatchPublishItemResult[];
 }
 
@@ -48,6 +51,7 @@ export async function publishPendingChannelBatch(
     attempted: 0,
     published: 0,
     failed: 0,
+    skipped: 0,
     results: [],
   };
 
@@ -76,11 +80,14 @@ export async function publishPendingChannelBatch(
   const pendingProducts = (products || []).filter((p) => !publishedProductIds.has(p.id));
   stats.pendingCount = pendingProducts.length;
 
-  const batch = pendingProducts.slice(0, maxItems);
+  // Invalid images must not keep a scheduled single-item batch stuck on the same product.
+  const batch = pendingProducts.slice(0, channel === 'instagram' ? 50 : maxItems);
+  let publicationAttempts = 0;
 
-  for (let i = 0; i < batch.length; i += 1) {
+  for (let i = 0; i < batch.length && publicationAttempts < maxItems; i += 1) {
     const product = batch[i];
     stats.attempted += 1;
+    publicationAttempts += 1;
 
     try {
       let { data: draft } = await supabase
@@ -124,18 +131,27 @@ export async function publishPendingChannelBatch(
         externalPostId: publishResult.externalPostId,
       });
 
-      if (i < batch.length - 1 && delayMs > 0) {
+      if (i < batch.length - 1 && publicationAttempts < maxItems && delayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     } catch (err) {
-      stats.failed += 1;
       const message = err instanceof Error ? err.message : String(err);
+      const skipped = channel === 'instagram' && err instanceof InstagramImageError;
+      if (skipped) {
+        stats.skipped += 1;
+        publicationAttempts -= 1;
+        console.warn(`[BatchPublisher] Imagem inválida em ${product.id}; tentando o próximo produto: ${message}`);
+      } else {
+        stats.failed += 1;
+      }
       stats.results.push({
         productId: product.id,
         productName: product.name,
         published: false,
         error: message,
+        ...(skipped ? { skipped: true } : {}),
       });
+      if (skipped) continue;
 
       // Interrompe em caso de restrição de limite da Meta para poupar cota
       if (/limit|rate|quota|spam|frequency|permissão|permission/i.test(message)) {
@@ -167,6 +183,7 @@ export async function publishPendingStoriesBatch(
     attempted: 0,
     published: 0,
     failed: 0,
+    skipped: 0,
     results: [],
   };
 

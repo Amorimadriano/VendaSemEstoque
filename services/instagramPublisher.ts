@@ -1,5 +1,6 @@
 import { getSupabase } from '@/lib/supabase';
 import { validateProductQuality } from '@/lib/productQuality';
+import { validateInstagramImage } from '@/lib/instagramImage';
 
 type InstagramPublishingLimit = {
   quotaTotal: number;
@@ -96,9 +97,12 @@ export async function publishApprovedInstagramContent(contentId: string) {
   const product = content.product as { id?: string; name?: string; description?: string; image_url?: string; affiliate_url?: string; price?: number; status?: string } | null;
   const quality = validateProductQuality(product || {});
   if (!quality.valid) throw new Error(`Produto não atende aos critérios de publicação: ${quality.errors.join(', ')}.`);
+  if (!product?.image_url) throw new Error('O produto não possui uma imagem pública para publicação no Instagram.');
+  const imageUrl = content.content_type !== 'REEL' && content.content_type !== 'STORY'
+    ? await validateInstagramImage(product.image_url)
+    : product.image_url;
   const publishingLimit = await ensureInstagramPublishingCapacity();
   const caption = `${content.hook}\n\n${content.caption}\n\n${content.cta}\n🔗 Acesse o link na bio para ver a oferta e consultar a disponibilidade atualizada.`;
-  const imageUrl = product?.image_url;
   const brandedContentFields: Record<string, string> = process.env.META_INSTAGRAM_BRANDED_CONTENT === 'true'
     ? { is_branded_content: 'true' }
     : {};
@@ -266,10 +270,10 @@ export async function publishApprovedInstagramStory(contentId: string) {
   if (!content) throw new Error('Story aprovado do Instagram não encontrado.');
 
   const product = content.product as { id?: string; name?: string; description?: string; image_url?: string; affiliate_url?: string; price?: number; status?: string } | null;
-  const imageUrl = product?.image_url;
-  if (!imageUrl || !imageUrl.startsWith('http')) {
+  if (!product?.image_url || !product.image_url.startsWith('http')) {
     throw new Error('O produto não possui uma imagem com URL pública válida para publicação no Story do Instagram.');
   }
+  const imageUrl = await validateInstagramImage(product.image_url);
 
   const publishingLimit = await ensureInstagramPublishingCapacity();
 

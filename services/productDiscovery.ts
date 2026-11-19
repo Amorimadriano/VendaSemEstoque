@@ -395,8 +395,11 @@ export async function runProductDiscovery(marketplaces: string[] = MARKETPLACES)
       for (const product of existing || []) {
         if (!discovered.has(`${marketplaceSlug}:${product.external_product_id}`)) {
           try {
-            if (typeof (integration as any).verifyProduct === 'function') {
-              const check = await (integration as any).verifyProduct(product.external_product_id);
+            if (integration.verifyProduct) {
+              const check = await integration.verifyProduct(product.external_product_id);
+              if (check.status === 'ERROR') {
+                console.warn(`[AvailabilityCheck] Não foi possível verificar ${marketplaceSlug}/${product.external_product_id}. Status ativo mantido: ${check.reason || 'Erro sem detalhes da integração'}`);
+              }
               // IMPORTANTE: Só marca OUT_OF_STOCK se o produto for expressamente confirmado como inexistente/inativo ('NOT_FOUND').
               // Se o status for 'ERROR' (500, 429, timeout), NÃO altera para OUT_OF_STOCK.
               if (marketplaceSlug !== 'shopee' && check.status === 'NOT_FOUND') {
@@ -409,7 +412,7 @@ export async function runProductDiscovery(marketplaces: string[] = MARKETPLACES)
               }
             }
           } catch (availabilityErr) {
-            console.warn(`[AvailabilityCheck] Falha temporária (500/429/timeout) ao verificar ${marketplaceSlug}/${product.external_product_id}. Status ativo mantido:`, availabilityErr);
+            console.warn(`[AvailabilityCheck] Falha ao verificar ${marketplaceSlug}/${product.external_product_id}. Status ativo mantido:`, availabilityErr);
           }
         }
       }
