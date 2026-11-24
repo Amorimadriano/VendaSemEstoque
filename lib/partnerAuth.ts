@@ -89,6 +89,6 @@ export async function readPartnerBytes(request: Request, maxBytes: number) {
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
   return bytes;
 }
-export async function readPartnerJson(request: Request): Promise<unknown> {
-  return JSON.parse(new TextDecoder().decode(await readPartnerBytes(request, 20000)));
+export async function readPartnerJson(request: Request, maxBytes = 20000): Promise<unknown> {
+  return JSON.parse(new TextDecoder().decode(await readPartnerBytes(request, maxBytes)));
 }

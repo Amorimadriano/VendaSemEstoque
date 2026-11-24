@@ -1,11 +1,15 @@
 import { z } from 'zod';
 
 export const PARTNER_TERMS_VERSION = '2026-11-24';
+export const PARTNER_PRODUCT_MAX_PHOTOS = 10;
+const partnerImageUrl = z.string().url().max(2000).refine((value) => new URL(value).protocol === 'https:', 'Use imagem HTTPS');
 export const partnerProductSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(5).max(120),
   description: z.string().trim().min(40).max(5000),
-  image_url: z.string().url().max(2000).refine((value) => new URL(value).protocol === 'https:', 'Use imagem HTTPS'),
+  image_url: partnerImageUrl,
+  image_urls: z.array(partnerImageUrl).min(1).max(PARTNER_PRODUCT_MAX_PHOTOS)
+    .refine((images) => new Set(images).size === images.length, 'Não repita fotos na galeria').optional(),
   price_cents: z.number().int().min(100).max(10000000),
   stock: z.number().int().min(0).max(100000),
   delivery_days: z.number().int().min(1).max(60),
@@ -31,6 +35,9 @@ export type PartnerProduct = z.infer<typeof partnerProductSchema> & {
   id: string; partner_id: string; status: 'PENDING_REVIEW' | 'ACTIVE' | 'REJECTED' | 'INACTIVE';
   review_note: string | null; created_at: string; updated_at: string;
 };
+export function partnerProductImages(product: Pick<PartnerProduct, 'image_url' | 'image_urls'>) {
+  return [...new Set([product.image_url, ...(product.image_urls || [])])];
+}
 export const partnerOrderSchema = z.object({
   id: z.string().uuid(), product_id: z.string().uuid(), partner_id: z.string().uuid(), product_name: z.string(),
   total_cents: z.number().int().positive(), commission_bps: z.number().int(), commission_cents: z.number().int().positive(),

@@ -48,6 +48,7 @@ model PartnerProduct {
   name         String
   description  String
   imageUrl     String   @map("image_url")
+  imageUrls    String[] @default([]) @map("image_urls")
   priceCents   Int      @map("price_cents")
   stock        Int
   deliveryDays Int      @map("delivery_days")

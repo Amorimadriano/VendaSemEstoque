@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { getPartnerCatalog } from '@/services/partnerCatalog';
-import { formatBRL, partnerPaymentConfig, publicSiteUrl } from '@/lib/partner';
+import { formatBRL, partnerPaymentConfig, partnerProductImages, publicSiteUrl } from '@/lib/partner';
 import PartnerCheckoutForm from '@/components/PartnerCheckoutForm';
+import PartnerProductGallery from '@/components/PartnerProductGallery';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -19,10 +20,7 @@ export default async function PartnerProductPage({ params }: { params: Promise<{
   return <div className="space-y-6">
     <Link href="/loja-parceiros" className="text-blue-700 underline">Voltar à vitrine</Link>
     <div className="grid md:grid-cols-2 gap-8">
-      <div className="bg-white rounded-2xl border p-6">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={product.image_url} alt={product.name} referrerPolicy="no-referrer" className="w-full max-h-[500px] object-contain" />
-      </div>
+      <PartnerProductGallery key={product.id} images={partnerProductImages(product)} name={product.name} />
       <section className="space-y-5">
         <p className="text-sm text-gray-600">Vendido e entregue por {product.seller.store_name}</p>
         <h1 className="text-3xl font-bold">{product.name}</h1>

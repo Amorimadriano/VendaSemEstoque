@@ -8,7 +8,9 @@
 - `/parceiros/cadastro` e `/parceiros/entrar`: conta própria de vendedor.
 - `/parceiros/painel`: produtos, aceite de comissão, conexão Mercado Pago,
   pedidos confirmados, dados para entrega e rastreamento.
-  Cada produto aceita uma foto enviada do computador/celular ou uma URL HTTPS.
+  Cada produto aceita até 10 fotos enviadas do computador/celular, inclusive
+  selecionadas em lote, ou adicionadas por URL HTTPS. É possível remover fotos
+  da galeria e escolher a capa antes de salvar.
 - `/admin/parceiros`: análise cadastral, curadoria, suspensão e conciliação.
 - `/loja-parceiros`: catálogo exclusivo de produtos aprovados de contas ativas.
 - `/parceiros/compra`: acompanhamento por link privado, sem expor endereço.
@@ -40,18 +42,25 @@ Para habilitar as fotos enviadas pelo painel, aplique também:
 
 ```powershell
 npx prisma db execute --file prisma\migrations\0020_partner_product_photos\migration.sql --schema prisma\schema.prisma
+npx prisma db execute --file prisma\migrations\0021_partner_product_gallery\migration.sql --schema prisma\schema.prisma
 ```
 
 Essa migração configura o bucket público `partner-products` no Supabase Storage.
 Fotos aceitas: JPEG, PNG e WebP, até 5 MB por arquivo. O servidor verifica tamanho,
 tipo e assinatura do arquivo; SVG e outros formatos não são aceitos.
 O upload exige sessão do parceiro, mesma origem e conta não suspensa, com limite
-de 10 envios por 15 minutos por IP/conta. As gravações usam somente a service role,
+de 30 envios por 15 minutos por IP/conta. As gravações usam somente a service role,
 com pasta do parceiro e nome aleatório, sem permitir sobrescrever fotos.
 Não é necessário liberar escrita anônima no bucket. Os links das fotos são
 públicos desde o envio; não envie documentos ou imagens particulares.
 Trocar ou cancelar uma foto não remove o arquivo antigo automaticamente;
 considere esse armazenamento na política de retenção e na operação do programa.
+A migração da galeria preserva a foto antiga, mantém `image_url` como capa
+compatível e adiciona `image_urls` com as fotos ordenadas. O formulário envia
+arquivos individualmente para manter o limite de memória; se um envio falhar,
+as fotos já enviadas permanecem no formulário e as restantes podem ser
+selecionadas novamente. A página pública oferece miniaturas selecionáveis,
+e todas as fotos ficam disponíveis para a curadoria administrativa.
 
 Todas as tabelas novas têm RLS. `anon` e `authenticated` não têm acesso direto;
 somente as rotas do servidor, usando service role, acessam esses registros.

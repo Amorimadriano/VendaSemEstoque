@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { formatBRL } from '@/lib/partner';
+import { formatBRL, partnerProductImages } from '@/lib/partner';
 import type { Partner, PartnerOrder, PartnerProduct, partnerPaymentConfig } from '@/lib/partner';
 
 type AdminData = { partners: Partner[]; products: PartnerProduct[]; orders: PartnerOrder[]; payments: ReturnType<typeof partnerPaymentConfig> };
@@ -49,7 +49,7 @@ export default function PartnerAdmin() {
       </article>)}</div></section>
       <section><h2 className="text-xl font-bold mb-4">Anúncios para curadoria</h2>{!data.products.length && <p>Nenhum produto enviado.</p>}<div className="grid md:grid-cols-2 gap-4">{data.products.map((product) => <article key={product.id} className="rounded-xl border bg-white p-5 space-y-3">
         <h3 className="font-bold">{product.name} · {product.status}</h3><p className="text-sm">{data.partners.find((partner) => partner.id === product.partner_id)?.store_name || product.partner_id}</p>
-        <a href={product.image_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline text-sm">Abrir foto para análise</a>
+        <div className="flex flex-wrap gap-3 text-sm">{partnerProductImages(product).map((image, index) => <a key={image} href={image} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Analisar foto {index + 1}{index === 0 ? ' (capa)' : ''}</a>)}</div>
         <p className="whitespace-pre-line text-sm">{product.description}</p><p>{formatBRL(product.price_cents)} · {product.stock} unidades disponíveis · Entrega: {product.delivery_days} dias</p>
         <p className="text-sm whitespace-pre-line">Devoluções: {product.return_policy}</p>
         <div className="flex flex-wrap gap-2"><button disabled={busy || reason.trim().length < 3} className={`${button} text-green-800`} onClick={() => moderate('product', product.id, 'ACTIVE')}>Aprovar anúncio</button><button disabled={busy || reason.trim().length < 3} className={`${button} text-red-800`} onClick={() => moderate('product', product.id, 'REJECTED')}>Rejeitar</button><button disabled={busy || reason.trim().length < 3} className={button} onClick={() => moderate('product', product.id, 'INACTIVE')}>Pausar</button></div>

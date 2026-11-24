@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     assertPartnerOrigin(request);
     const partner = await requirePartner(request);
     if (partner.status === 'SUSPENDED') throw new PartnerError('Conta suspensa para envio de novas fotos.', 403);
-    await limitPartnerRequests(request, 'partner-photo', 10, partner.id);
+    await limitPartnerRequests(request, 'partner-photo', 30, partner.id);
     const contentType = request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() || '';
     if (!PARTNER_PHOTO_TYPES.some((type) => type === contentType)) {
       throw new PartnerError('Envie uma foto JPEG, PNG ou WebP de até 5 MB.', 415);

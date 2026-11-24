@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatBRL, moneyToCents, partnerOrderLabels, partnerDeliveryLabels } from '@/lib/partner';
+import { formatBRL, moneyToCents, partnerOrderLabels, partnerDeliveryLabels, partnerProductImages, partnerProductSchema, PARTNER_PRODUCT_MAX_PHOTOS } from '@/lib/partner';
 import type { Partner, PartnerOrder, PartnerProduct, partnerPaymentConfig } from '@/lib/partner';
 import { PARTNER_PHOTO_MAX_BYTES, PARTNER_PHOTO_TYPES } from '@/lib/partnerPhoto';
 
@@ -21,7 +21,9 @@ export default function PartnerDashboard() {
   const [editing, setEditing] = useState<PartnerProduct | null>(null);
   const [formKey, setFormKey] = useState(0);
   const [photoUrl, setPhotoUrl] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState('');
   const [photoError, setPhotoError] = useState('');
   const load = useCallback(async () => {
     const response = await fetch('/api/parceiros/painel', { cache: 'no-store' });
@@ -44,31 +46,54 @@ export default function PartnerDashboard() {
   async function submitProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (uploadingPhoto) return;
+    if (!photos.length) { setPhotoError('Adicione pelo menos uma foto ao produto.'); return; }
+    if (photoUrl.trim()) { setPhotoError('Clique em Adicionar URL ou limpe o campo antes de salvar.'); return; }
     const form = new FormData(event.currentTarget);
     try {
       const ok = await perform({ action: 'product', ...(editing ? { id: editing.id, expected_updated_at: editing.updated_at } : {}),
-        name: form.get('name'), description: form.get('description'), image_url: form.get('image_url'),
+        name: form.get('name'), description: form.get('description'), image_url: photos[0], image_urls: photos,
         price_cents: moneyToCents(String(form.get('price')).replace(',', '.')), stock: Number(form.get('stock')),
         delivery_days: Number(form.get('delivery_days')), return_policy: form.get('return_policy'),
       }, 'Produto enviado para análise. A publicação depende de aprovação.');
-      if (ok) { setEditing(null); setPhotoUrl(''); setPhotoError(''); setFormKey((key) => key + 1); }
+      if (ok) { setEditing(null); setPhotos([]); setPhotoUrl(''); setPhotoError(''); setFormKey((key) => key + 1); }
     } catch (error) { setError(error instanceof Error ? error.message : 'Preço inválido.'); }
   }
-  async function uploadPhoto(file: File) {
+  function addPhotoUrl() {
     setPhotoError('');
-    if (!PARTNER_PHOTO_TYPES.some((type) => type === file.type) || !file.size) {
-      setPhotoError('Selecione uma foto JPEG, PNG ou WebP.'); return;
+    const url = partnerProductSchema.shape.image_url.safeParse(photoUrl.trim());
+    if (!url.success) { setPhotoError('Informe uma URL HTTPS válida para a foto.'); return; }
+    if (photos.length >= PARTNER_PRODUCT_MAX_PHOTOS) { setPhotoError('O produto aceita até 10 fotos.'); return; }
+    if (photos.includes(url.data)) { setPhotoError('Esta foto já foi adicionada.'); return; }
+    setPhotos((current) => [...current, url.data]); setPhotoUrl('');
+  }
+  async function uploadPhotos(files: File[]) {
+    setPhotoError('');
+    if (photos.length + files.length > PARTNER_PRODUCT_MAX_PHOTOS) {
+      setPhotoError(`O produto aceita até 10 fotos. Você pode adicionar mais ${Math.max(0, PARTNER_PRODUCT_MAX_PHOTOS - photos.length)}.`); return;
     }
-    if (file.size > PARTNER_PHOTO_MAX_BYTES) { setPhotoError('A foto deve ter no máximo 5 MB.'); return; }
+    for (const file of files) {
+      if (!PARTNER_PHOTO_TYPES.some((type) => type === file.type) || !file.size) {
+        setPhotoError(`${file.name}: selecione uma foto JPEG, PNG ou WebP.`); return;
+      }
+      if (file.size > PARTNER_PHOTO_MAX_BYTES) { setPhotoError(`${file.name}: cada foto deve ter no máximo 5 MB.`); return; }
+    }
     setUploadingPhoto(true);
+    let completed = 0;
     try {
-      const response = await fetch('/api/parceiros/fotos', { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Não foi possível enviar a foto.');
-      if (typeof body.image_url !== 'string') throw new Error('O servidor não retornou o endereço da foto.');
-      setPhotoUrl(body.image_url);
-    } catch (error) { setPhotoError(error instanceof Error ? error.message : 'Falha ao enviar a foto. Tente novamente.'); }
-    finally { setUploadingPhoto(false); }
+      for (const file of files) {
+        setPhotoProgress(`Enviando foto ${completed + 1} de ${files.length}...`);
+        const response = await fetch('/api/parceiros/fotos', { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || 'Não foi possível enviar a foto.');
+        if (typeof body.image_url !== 'string') throw new Error('O servidor não retornou o endereço da foto.');
+        const imageUrl: string = body.image_url;
+        setPhotos((current) => [...current, imageUrl]); completed++;
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Falha ao enviar a foto.';
+      setPhotoError(`${completed} de ${files.length} fotos adicionadas. ${reason} Selecione novamente apenas as fotos restantes.`);
+    }
+    finally { setUploadingPhoto(false); setPhotoProgress(''); }
   }
   async function logout() {
     setBusy(true); setError('');
@@ -99,14 +124,23 @@ export default function PartnerDashboard() {
         <form key={`${editing?.id || 'new'}-${formKey}`} onSubmit={submitProduct} className="grid md:grid-cols-2 gap-4">
           <label>Nome<input name="name" required minLength={5} maxLength={120} defaultValue={editing?.name} className={input} /></label>
           <div className="space-y-3 min-w-0">
-            <label className="block">Enviar foto do produto<input type="file" accept={PARTNER_PHOTO_TYPES.join(',')} disabled={busy || uploadingPhoto || data.partner.status === 'SUSPENDED'} className={`${input} text-sm`} onChange={(event) => {
-              const file = event.currentTarget.files?.[0]; event.currentTarget.value = '';
-              if (file) void uploadPhoto(file);
-            }} /><span className="text-xs text-gray-600">JPEG, PNG ou WebP, até 5 MB. A foto enviada terá um link público.</span></label>
-            {uploadingPhoto && <p role="status" className="text-sm text-blue-700">Enviando foto... Aguarde antes de salvar o produto.</p>}
+            <label className="block">Enviar fotos do produto<input type="file" multiple accept={PARTNER_PHOTO_TYPES.join(',')} disabled={busy || uploadingPhoto || photos.length >= PARTNER_PRODUCT_MAX_PHOTOS || data.partner.status === 'SUSPENDED'} className={`${input} text-sm`} onChange={(event) => {
+              const files = Array.from(event.currentTarget.files || []); event.currentTarget.value = '';
+              if (files.length) void uploadPhotos(files);
+            }} /><span className="text-xs text-gray-600">Selecione várias fotos de uma vez. Até 10 fotos JPEG, PNG ou WebP, com até 5 MB cada. Os links são públicos.</span></label>
+            {uploadingPhoto && <p role="status" className="text-sm text-blue-700">{photoProgress} Aguarde antes de salvar o produto.</p>}
             {photoError && <p role="alert" className="text-sm text-red-800">{photoError}</p>}
-            <label className="block">Ou informe a URL HTTPS da foto autorizada<input name="image_url" type="url" pattern="https://.*" required maxLength={2000} value={photoUrl} disabled={uploadingPhoto} onChange={(event) => { setPhotoUrl(event.target.value); setPhotoError(''); }} className={input} /></label>
-            {photoUrl.startsWith('https://') && <img src={photoUrl} alt="Prévia da foto do produto" className="h-32 w-32 rounded-lg border object-contain bg-gray-50" />}
+            <label className="block">Ou adicione uma URL HTTPS de foto autorizada<input type="url" pattern="https://.*" maxLength={2000} value={photoUrl} disabled={busy || uploadingPhoto} onChange={(event) => { setPhotoUrl(event.target.value); setPhotoError(''); }} className={input} /></label>
+            <button type="button" disabled={busy || uploadingPhoto || photos.length >= PARTNER_PRODUCT_MAX_PHOTOS || data.partner.status === 'SUSPENDED'} onClick={addPhotoUrl} className="text-sm text-blue-700 underline disabled:opacity-50">Adicionar URL</button>
+            <p className="text-sm text-gray-600">{photos.length} de 10 fotos · A primeira foto será a capa.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{photos.map((photo, index) => <div key={photo} className="min-w-0 rounded-lg border p-2 space-y-2">
+              <img src={photo} alt={`Prévia da foto ${index + 1} do produto`} className="h-24 w-full object-contain bg-gray-50" />
+              <p className="text-xs font-semibold">{index === 0 ? 'Foto de capa' : `Foto ${index + 1}`}</p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {index > 0 && <button type="button" disabled={busy || uploadingPhoto} onClick={() => setPhotos((current) => [photo, ...current.filter((image) => image !== photo)])} className="text-blue-700 underline">Usar como capa</button>}
+                <button type="button" disabled={busy || uploadingPhoto} aria-label={`Remover foto ${index + 1}`} onClick={() => setPhotos((current) => current.filter((image) => image !== photo))} className="text-red-700 underline">Remover</button>
+              </div>
+            </div>)}</div>
           </div>
           <label className="md:col-span-2">Descrição completa<textarea name="description" required minLength={40} maxLength={5000} defaultValue={editing?.description} className={input} rows={4} /></label>
           <label>Preço com frete incluído (R$)<input name="price" type="number" step="0.01" min="1" max="100000" required defaultValue={editing ? editing.price_cents / 100 : ''} className={input} /></label>
@@ -114,7 +148,7 @@ export default function PartnerDashboard() {
           <label>Prazo máximo de entrega no Brasil (dias corridos)<input name="delivery_days" type="number" min="1" max="60" required defaultValue={editing?.delivery_days ?? 10} className={input} /></label>
           <label>Política de devolução e atendimento<textarea name="return_policy" required minLength={30} maxLength={2000} defaultValue={editing?.return_policy} className={input} rows={3} placeholder="Descreva como o cliente solicita atendimento, devolução e reembolso, respeitando a legislação aplicável." /></label>
           <p className="md:col-span-2 text-sm text-gray-600">O preço deve cobrir a entrega em todo o Brasil. Não inclua no estoque disponível as unidades já reservadas em pedidos. Fotos devem ter uso autorizado. Não publique produtos ilegais, falsificados ou restritos.</p>
-          <div className="flex gap-4"><button className={button} disabled={busy || uploadingPhoto || data.partner.status === 'SUSPENDED'}>{busy || uploadingPhoto ? 'Aguarde...' : 'Enviar para aprovação'}</button>{editing && <button type="button" disabled={busy || uploadingPhoto} className="text-blue-700 underline" onClick={() => { setEditing(null); setPhotoUrl(''); setPhotoError(''); }}>Cancelar edição</button>}</div>
+          <div className="flex flex-wrap gap-4"><button className={button} disabled={busy || uploadingPhoto || data.partner.status === 'SUSPENDED'}>{busy || uploadingPhoto ? 'Aguarde...' : 'Enviar para aprovação'}</button>{editing && <button type="button" disabled={busy || uploadingPhoto} className="text-blue-700 underline" onClick={() => { setEditing(null); setPhotos([]); setPhotoUrl(''); setPhotoError(''); }}>Cancelar edição</button>}</div>
         </form>
       </section>
       <section><h2 className="text-xl font-bold mb-4">Seus produtos (até 200 mais recentes)</h2>
@@ -123,7 +157,7 @@ export default function PartnerDashboard() {
           <h3 className="font-bold">{product.name}</h3><p>{formatBRL(product.price_cents)} · {product.stock} disponíveis · {product.status}</p>
           {product.review_note && <p className="text-sm text-gray-600">Análise: {product.review_note}</p>}
           <div className="flex flex-wrap gap-4 text-sm">
-            <button disabled={busy || uploadingPhoto} onClick={() => { setEditing(product); setPhotoUrl(product.image_url); setPhotoError(''); }} className="text-blue-700 underline">Editar</button>
+            <button disabled={busy || uploadingPhoto} onClick={() => { setEditing(product); setPhotos(partnerProductImages(product)); setPhotoUrl(''); setPhotoError(''); }} className="text-blue-700 underline">Editar</button>
             <button disabled={busy || product.status === 'INACTIVE'} onClick={() => perform({ action: 'pause_product', id: product.id }, 'Produto pausado.')} className="text-red-700 underline">Pausar anúncio</button>
             {product.status === 'ACTIVE' && <Link href={`/loja-parceiros/${product.id}`} className="text-blue-700 underline">Ver e compartilhar</Link>}
           </div>

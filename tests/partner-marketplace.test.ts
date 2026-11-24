@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
 import { NextRequest } from 'next/server';
-import { commissionCents, moneyToCents, partnerProductSchema, PartnerOrder, requirePartnerPayments } from '../lib/partner';
+import { commissionCents, moneyToCents, partnerProductImages, partnerProductSchema, PartnerOrder, requirePartnerPayments } from '../lib/partner';
 import { assertPartnerOrigin, createPartnerSession, readPartnerBytes, readPartnerJson, verifyPartnerSession } from '../lib/partnerAuth';
 import { PARTNER_PHOTO_MAX_BYTES, validatePartnerPhoto } from '../lib/partnerPhoto';
 import { decryptPartnerTokens, encryptPartnerTokens, partnerPreference, paymentSchema, validatePartnerPayment, verifyMercadoPagoSignature } from '../services/partnerPayments';
@@ -58,6 +58,63 @@ test('partner sessions are scoped, signed, Unicode-safe and reject forgery and e
   const expired = Buffer.from(JSON.stringify({ id: order.partner_id, scope: 'partner', exp: 1 })).toString('base64url');
   const hmac = createHmac('sha256', `partner:${process.env.NEXTAUTH_SECRET}`).update(expired).digest('base64url');
   assert.equal(await verifyPartnerSession(`${expired}.${hmac}`), null);
+});
+
+test('gallery preserves legacy covers and validates ordered, unique HTTPS photos up to ten', () => {
+  const image = 'https://example.com/cover.jpg';
+  const input = {
+    name: 'Produto de teste', description: 'Descrição completa e verdadeira do produto enviado para análise.',
+    image_url: image, price_cents: 19990, stock: 3, delivery_days: 10,
+    return_policy: 'Atendimento e devoluções conforme a legislação aplicável.',
+  };
+  assert.deepEqual(partnerProductImages({ image_url: image }), [image]);
+  assert.deepEqual(partnerProductImages({ image_url: image, image_urls: [] }), [image]);
+  assert.deepEqual(partnerProductImages({ image_url: image, image_urls: [image, 'https://example.com/extra.png'] }), [image, 'https://example.com/extra.png']);
+  const images = Array.from({ length: 10 }, (_, index) => `https://example.com/${index}.png`);
+  assert.equal(partnerProductSchema.safeParse({ ...input, image_url: images[0], image_urls: images }).success, true);
+  for (const invalid of [[], [image, image], [image, 'http://example.com/extra.jpg'], [...images, image]]) {
+    assert.equal(partnerProductSchema.safeParse({ ...input, image_urls: invalid }).success, false);
+  }
+});
+
+test('seller writes persist complete galleries, reject inconsistent covers and accept full-length metadata', async (t) => {
+  const keys = ['NEXTAUTH_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
+  const previous = keys.map((key) => process.env[key]);
+  const originalFetch = globalThis.fetch;
+  process.env.NEXTAUTH_SECRET = 'test-secret-with-at-least-thirty-two-characters';
+  process.env.SUPABASE_URL = 'https://gallery-test.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role';
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+  });
+  const stored: Record<string, unknown>[] = [];
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init);
+    const path = new URL(request.url).pathname;
+    if (path === '/rest/v1/partners') return Response.json({ id: order.partner_id, status: 'PENDING' });
+    if (path === '/rest/v1/rpc/partner_rate_limit') return Response.json(true);
+    if (path === '/rest/v1/partner_products' && request.method === 'POST') {
+      stored.push(await request.json()); return Response.json({ id: order.product_id });
+    }
+    throw new Error(`Unexpected gallery request: ${path}`);
+  };
+  const token = await createPartnerSession(order.partner_id);
+  const images = Array.from({ length: 10 }, (_, index) => `https://example.com/${index}-${'x'.repeat(1900)}`);
+  const product = { action: 'product', name: 'Produto para galeria', description: 'x'.repeat(5000), image_url: images[0],
+    image_urls: images, price_cents: 1000, stock: 1, delivery_days: 10, return_policy: 'x'.repeat(2000) };
+  const request = (body: object) => new NextRequest('https://example.com/api/parceiros/painel', {
+    method: 'POST', headers: { origin: 'https://example.com', cookie: `partner_session=${token}` }, body: JSON.stringify(body),
+  });
+  assert(JSON.stringify(product).length > 20000);
+  assert.equal((await sellerAction(request(product))).status, 200);
+  assert.deepEqual(stored[0].image_urls, images);
+  assert.equal(stored[0].status, 'PENDING_REVIEW');
+  assert.equal((await sellerAction(request({ ...product, image_url: images[1] }))).status, 400);
+  assert.equal(stored.length, 1);
+  const { image_urls: _gallery, ...legacy } = product;
+  assert.equal((await sellerAction(request(legacy))).status, 200);
+  assert.equal('image_urls' in stored[1], false);
 });
 
 test('rejects cross-origin mutations and oversized payloads before processing', async () => {

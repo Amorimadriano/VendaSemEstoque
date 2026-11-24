@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     assertPartnerOrigin(request);
     const partner = await requirePartner(request);
     await limitPartnerRequests(request, 'partner-write', 60, partner.id);
-    const body = actionSchema.parse(await readPartnerJson(request));
+    const body = actionSchema.parse(await readPartnerJson(request, 40000));
     if (partner.status === 'SUSPENDED' && ['product', 'accept_commission'].includes(body.action)) {
       throw new PartnerError('Conta suspensa para novas vendas. O acompanhamento de pedidos anteriores continua disponível.', 403);
     }
@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
     } else if (body.action === 'product') {
       const { id, action: _action, expected_updated_at, ...data } = body;
       if (id && !expected_updated_at) throw new PartnerError('Atualize o painel antes de editar o produto.', 409);
+      if (data.image_urls && data.image_urls[0] !== data.image_url) {
+        throw new PartnerError('A primeira foto da galeria deve ser a capa do produto.');
+      }
       const payload = { ...data, status: 'PENDING_REVIEW', review_note: null, updated_at: new Date().toISOString() };
       const result = id
         ? await db.from('partner_products').update(payload).eq('id', id).eq('partner_id', partner.id)
