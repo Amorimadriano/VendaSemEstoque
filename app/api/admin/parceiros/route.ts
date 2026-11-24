@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { COOKIE_NAME, verifyAdminSession } from '@/lib/adminAuth';
 import { getSupabase } from '@/lib/supabase';
 import { partnerApiError, assertPartnerOrigin, readPartnerJson, partnerFields } from '@/lib/partnerAuth';
-import { PartnerError, PartnerOrder, partnerPaymentConfig } from '@/lib/partner';
+import { PartnerError, PartnerOrder, partnerPaymentConfig, partnerPaymentEnvironmentStatus } from '@/lib/partner';
 import { reconcilePartnerOrder } from '@/services/partnerPayments';
 
 export const runtime = 'edge';
@@ -23,7 +23,16 @@ export async function GET(request: NextRequest) {
     if (partners.error) throw partners.error;
     if (products.error) throw products.error;
     if (orders.error) throw orders.error;
-    return NextResponse.json({ partners: partners.data, products: products.data, orders: orders.data, payments: partnerPaymentConfig() },
+    const context = process.env.NEXT_RUNTIME === 'edge'
+      ? (await import('@cloudflare/next-on-pages')).getOptionalRequestContext() : undefined;
+    const bindings = context ? partnerPaymentEnvironmentStatus(context.env) : undefined;
+    const paymentEnvironment = {
+      cloudflareContext: Boolean(context),
+      variables: partnerPaymentEnvironmentStatus().map((variable, index) => ({
+        ...variable, bindingPresent: bindings ? bindings[index].present : null,
+      })),
+    };
+    return NextResponse.json({ partners: partners.data, products: products.data, orders: orders.data, payments: partnerPaymentConfig(), paymentEnvironment },
       { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) { return partnerApiError(error); }
 }

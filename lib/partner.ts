@@ -86,6 +86,15 @@ export function formatBRL(cents: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 }
 
+export function partnerPaymentEnvironmentStatus(environment: object = process.env) {
+  const names = ['PARTNER_COMMISSION_BPS', 'MERCADOPAGO_CLIENT_ID', 'MERCADOPAGO_CLIENT_SECRET',
+    'MERCADOPAGO_WEBHOOK_SECRET', 'PARTNER_TOKEN_ENCRYPTION_KEY', 'PARTNER_PAYMENTS_ENABLED', 'MERCADOPAGO_MODE'] as const;
+  return names.map((name) => {
+    const value: unknown = Reflect.get(environment, name);
+    return { name, present: typeof value === 'string' && value.length > 0 };
+  });
+}
+
 export function partnerPaymentConfig() {
   const enabled = process.env.PARTNER_PAYMENTS_ENABLED === 'true';
   const configured = Boolean(process.env.MERCADOPAGO_CLIENT_ID && process.env.MERCADOPAGO_CLIENT_SECRET &&

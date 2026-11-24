@@ -71,6 +71,12 @@ Pedidos e pagamentos têm relacionamentos que impedem exclusão do histórico.
 Cadastros, submissão, curadoria e vitrine funcionam sem credenciais financeiras.
 Checkout e conexão OAuth recusam operação enquanto desabilitados/incompletos.
 Nunca coloque secrets em variáveis `NEXT_PUBLIC_*`.
+No painel administrativo, abra **Diagnóstico das variáveis desta implantação**
+para conferir somente os nomes e a presença das configurações, sem revelar
+valores. O diagnóstico compara a leitura do aplicativo com os bindings do
+Cloudflare. Cadastre os secrets no projeto **Pages `venda-sem-estoque`**, no
+ambiente **Production**; variáveis locais, do Worker de automação ou de Preview
+não configuram a URL pública de produção. Reimplante depois de salvar.
 
 Defina os valores no ambiente local e nos secrets/variáveis do Cloudflare Pages:
 

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { formatBRL, partnerProductImages } from '@/lib/partner';
 import type { Partner, PartnerOrder, PartnerProduct, partnerPaymentConfig } from '@/lib/partner';
 
-type AdminData = { partners: Partner[]; products: PartnerProduct[]; orders: PartnerOrder[]; payments: ReturnType<typeof partnerPaymentConfig> };
+type AdminData = { partners: Partner[]; products: PartnerProduct[]; orders: PartnerOrder[]; payments: ReturnType<typeof partnerPaymentConfig>;
+  paymentEnvironment?: { cloudflareContext: boolean; variables: { name: string; present: boolean; bindingPresent: boolean | null }[] } };
 export default function PartnerAdmin() {
   const [data, setData] = useState<AdminData | null>(null);
   const [error, setError] = useState('');
@@ -37,6 +38,15 @@ export default function PartnerAdmin() {
     {!data ? <p>Carregando...</p> : <>
       <section className="rounded-xl border bg-blue-50 p-5 space-y-2"><h2 className="font-bold">Prontidão para receber pagamentos</h2>
         <p>Percentual: {data.payments.commissionBps ? `${data.payments.commissionBps / 100}%` : 'NÃO CONFIGURADO'} · Credenciais: {data.payments.configured ? 'configuradas' : 'incompletas'} · Checkout: {data.payments.enabled ? 'habilitado' : 'desabilitado'} · Ambiente: {data.payments.mode}</p>
+        {data.paymentEnvironment && <details className="rounded-lg border border-blue-200 bg-white p-3 text-sm">
+          <summary className="cursor-pointer font-semibold">Diagnóstico das variáveis desta implantação</summary>
+          <p className="mt-2 text-gray-600">Somente nomes e presença são exibidos, nunca os valores. Variáveis locais ou de outro projeto/ambiente não configuram este site.</p>
+          <ul className="mt-3 space-y-1 break-words">{data.paymentEnvironment.variables.map((variable) => <li key={variable.name}>
+            <code className="break-all">{variable.name}</code>: <strong>{variable.present ? 'recebida' : 'não recebida'}</strong>
+            {variable.bindingPresent !== null && ` · binding Cloudflare: ${variable.bindingPresent ? 'presente' : 'ausente'}`}
+          </li>)}</ul>
+          <p className="mt-3">Confira Workers &amp; Pages → venda-sem-estoque (Pages) → Settings → Variables and Secrets → Production. Depois de salvar, faça uma nova implantação.</p>
+        </details>}
         <p className="text-sm">Antes de aprovar vendedores, confirme identidade, contato comercial, origem dos produtos e atendimento. Antes de ativar cobranças reais, conclua a configuração do Mercado Pago, teste o fluxo completo e valide as condições jurídicas e fiscais da operação.</p>
         <p>Comissões confirmadas nos pedidos listados: <strong>{formatBRL(data.orders.reduce((sum, order) => sum + order.earned_commission_cents, 0))}</strong>. Não representa saldo disponível para saque.</p>
       </section>

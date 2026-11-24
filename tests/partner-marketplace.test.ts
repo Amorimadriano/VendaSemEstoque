@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
 import { NextRequest } from 'next/server';
-import { commissionCents, moneyToCents, partnerProductImages, partnerProductSchema, PartnerOrder, requirePartnerPayments } from '../lib/partner';
+import { commissionCents, moneyToCents, partnerPaymentEnvironmentStatus, partnerProductImages, partnerProductSchema, PartnerOrder, requirePartnerPayments } from '../lib/partner';
 import { assertPartnerOrigin, createPartnerSession, readPartnerBytes, readPartnerJson, verifyPartnerSession } from '../lib/partnerAuth';
 import { PARTNER_PHOTO_MAX_BYTES, validatePartnerPhoto } from '../lib/partnerPhoto';
 import { decryptPartnerTokens, encryptPartnerTokens, partnerPreference, paymentSchema, validatePartnerPayment, verifyMercadoPagoSignature } from '../services/partnerPayments';
@@ -22,6 +22,20 @@ const order: PartnerOrder = {
   paid_cents: 0, refunded_cents: 0, earned_commission_cents: 0,
   receipt_token: '978ba0d0-908a-4ad0-859b-2e6d03a5461f', created_at: '2026-11-24T15:00:00Z', expires_at: '2026-11-24T15:30:00Z',
 };
+
+test('payment diagnostics report only allowed variable names and presence, never secret values', () => {
+  const status = partnerPaymentEnvironmentStatus({
+    PARTNER_COMMISSION_BPS: '1000', MERCADOPAGO_CLIENT_SECRET: 'private-test-secret',
+    PARTNER_PAYMENTS_ENABLED: 'false', MERCADOPAGO_CLIENT_ID: '', UNRELATED_SECRET: 'not-for-diagnostics',
+  });
+  assert.equal(status.find((value) => value.name === 'PARTNER_COMMISSION_BPS')?.present, true);
+  assert.equal(status.find((value) => value.name === 'PARTNER_PAYMENTS_ENABLED')?.present, true);
+  assert.equal(status.find((value) => value.name === 'MERCADOPAGO_CLIENT_ID')?.present, false);
+  assert.equal(status.find((value) => value.name === 'MERCADOPAGO_WEBHOOK_SECRET')?.present, false);
+  for (const secret of ['1000', 'private-test-secret', 'UNRELATED_SECRET', 'not-for-diagnostics']) {
+    assert.equal(JSON.stringify(status).includes(secret), false);
+  }
+});
 
 test('calculates fees and BRL amounts using integer cents without accepting invalid money', () => {
   assert.equal(commissionCents(19990, 1000), 1999);
