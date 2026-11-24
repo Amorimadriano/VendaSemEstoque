@@ -1,6 +1,7 @@
 export default {
-  async scheduled(_controller, env) {
-    const endpoints = [
+  async scheduled(controller, env) {
+    const endpoints = controller.cron === '*/15 * * * *' ? ['partner-orders'] : [
+      'partner-orders',
       'autonomous-workflow',
       'verify-partner-products',
       'publish-instagram',

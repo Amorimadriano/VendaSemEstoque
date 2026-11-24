@@ -22,6 +22,7 @@ export default function Navbar() {
       {/* Top Banner Transparência */}
       <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white text-xs py-1.5 px-4 text-center">
         <span>✨ Plataforma 100% transparente de ofertas & afiliados. Sem estoque próprio.</span>
+        <Link href="/parceiros" className="inline-block ml-3 font-bold underline">Tem uma loja? Venda no nosso site</Link>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

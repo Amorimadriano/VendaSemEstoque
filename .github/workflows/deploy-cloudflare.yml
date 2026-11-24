@@ -41,4 +41,4 @@ jobs:
         run: |
           npx wrangler pages project create venda-sem-estoque --production-branch=main || true
           npx wrangler pages deploy .vercel/output/static --project-name=venda-sem-estoque
-          npx wrangler deploy --config cloudflare/automation-worker.wrangler.toml || echo "Worker deploy opcional ignorado se secrets nao definidos"
+          npx wrangler deploy --config cloudflare/automation-worker.wrangler.toml

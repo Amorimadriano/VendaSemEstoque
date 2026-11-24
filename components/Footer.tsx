@@ -23,6 +23,9 @@ export default function Footer() {
             <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Navegação</h4>
             <ul className="space-y-2 text-xs">
               <li><Link href="/produtos" className="hover:text-white transition-colors">Catálogo de Produtos</Link></li>
+              <li><Link href="/loja-parceiros" className="hover:text-white transition-colors">Lojas Parceiras</Link></li>
+              <li><Link href="/parceiros" className="hover:text-white transition-colors">Venda no nosso site</Link></li>
+              <li><Link href="/parceiros/painel" className="hover:text-white transition-colors">Painel do Parceiro</Link></li>
               <li><Link href="/mais-vendidos" className="hover:text-white transition-colors">Produtos Mais Vendidos</Link></li>
               <li><Link href="/em-alta" className="hover:text-white transition-colors">Produtos em Alta</Link></li>
               <li><Link href="/ofertas" className="hover:text-white transition-colors">Maiores Descontos</Link></li>
@@ -50,6 +53,7 @@ export default function Footer() {
               <p className="text-gray-400 text-[11px] leading-normal">
                 Podemos receber uma comissão de afiliado quando você conclui uma compra após clicar nos links do nosso site. Isso não altera o preço final para você.
               </p>
+              <p className="text-gray-400 text-[11px]">Na vitrine de vendedores independentes, o pagamento é processado pelo Mercado Pago quando habilitado, e a plataforma recebe a comissão aceita pelo vendedor. <Link href="/parceiros/termos" className="underline">Condições do programa</Link>.</p>
             </div>
           </div>
         </div>

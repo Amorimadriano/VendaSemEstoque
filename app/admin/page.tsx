@@ -3,6 +3,7 @@
 export const runtime = 'edge';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   LayoutDashboard,
   Package,
@@ -399,6 +400,7 @@ const fetchData = async () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link href="/admin/parceiros" className="text-blue-700 underline text-sm font-semibold">Vendedores parceiros</Link>
           <button
             onClick={fetchData}
             className="p-2 bg-white border border-gray-300 rounded-xl text-gray-600 hover:text-blue-600 shadow-xs"

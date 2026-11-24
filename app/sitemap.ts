@@ -10,6 +10,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Rotas estáticas fundamentais
   const staticRoutes: MetadataRoute.Sitemap = [
+    { url: `${baseUrl}/parceiros`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${baseUrl}/loja-parceiros`, lastModified: now, changeFrequency: 'daily', priority: 0.8 },
+    { url: `${baseUrl}/parceiros/termos`, lastModified: now, changeFrequency: 'monthly', priority: 0.3 },
     {
       url: `${baseUrl}`,
       lastModified: now,
@@ -84,7 +87,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }));
 
-    return [...staticRoutes, ...categoryRoutes, ...productRoutes];
+    const { data: partnerProducts, error: partnerError } = await supabase.from('partner_products')
+      .select('id,updated_at,seller:partners!inner(status)').eq('status', 'ACTIVE').eq('seller.status', 'ACTIVE').limit(1000);
+    if (partnerError) throw partnerError;
+    const partnerRoutes: MetadataRoute.Sitemap = (partnerProducts || []).map((product) => ({
+      url: `${baseUrl}/loja-parceiros/${product.id}`, lastModified: new Date(product.updated_at), changeFrequency: 'daily', priority: 0.7,
+    }));
+    return [...staticRoutes, ...categoryRoutes, ...productRoutes, ...partnerRoutes];
   } catch (error) {
     console.error('[Sitemap] Erro ao carregar rotas dinâmicas:', error);
     return staticRoutes;

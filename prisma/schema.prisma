@@ -3,6 +3,135 @@ generator client {
   previewFeatures = ["multiSchema"]
 }
 
+model Partner {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String    @unique
+  passwordHash          String    @map("password_hash")
+  storeName             String    @map("store_name")
+  legalName             String    @map("legal_name")
+  document              String
+  phone                 String
+  businessAddress       String    @map("business_address")
+  status                String    @default("PENDING")
+  reviewNote            String?   @map("review_note")
+  termsVersion          String    @map("terms_version")
+  termsAcceptedAt       DateTime  @default(now()) @map("terms_accepted_at") @db.Timestamptz(6)
+  acceptedCommissionBps Int?      @map("accepted_commission_bps")
+  commissionAcceptedAt  DateTime? @map("commission_accepted_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  paymentAccount        PartnerPaymentAccount?
+  products              PartnerProduct[]
+  orders                PartnerOrder[]
+  oauthStates           PartnerOAuthState[]
+
+  @@map("partners")
+  @@schema("public")
+}
+
+model PartnerPaymentAccount {
+  partnerId            String   @id @map("partner_id") @db.Uuid
+  providerUserId       String   @unique @map("provider_user_id")
+  encryptedCredentials String   @map("encrypted_credentials")
+  expiresAt            DateTime @map("expires_at") @db.Timestamptz(6)
+  liveMode             Boolean  @map("live_mode")
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  partner              Partner  @relation(fields: [partnerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("partner_payment_accounts")
+  @@schema("public")
+}
+
+model PartnerProduct {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId    String   @map("partner_id") @db.Uuid
+  name         String
+  description  String
+  imageUrl     String   @map("image_url")
+  priceCents   Int      @map("price_cents")
+  stock        Int
+  deliveryDays Int      @map("delivery_days")
+  returnPolicy String   @map("return_policy")
+  status       String   @default("PENDING_REVIEW")
+  reviewNote   String?  @map("review_note")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  partner      Partner  @relation(fields: [partnerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  orders       PartnerOrder[]
+
+  @@index([partnerId, createdAt(sort: Desc)], map: "partner_products_partner_idx")
+  @@map("partner_products")
+  @@schema("public")
+}
+
+model PartnerOrder {
+  id                    String   @id @db.Uuid
+  productId             String   @map("product_id") @db.Uuid
+  partnerId             String   @map("partner_id") @db.Uuid
+  productName           String   @map("product_name")
+  totalCents            Int      @map("total_cents")
+  commissionBps         Int      @map("commission_bps")
+  commissionCents       Int      @map("commission_cents")
+  buyer                 Json
+  receiptToken          String   @default(dbgenerated("gen_random_uuid()")) @map("receipt_token") @db.Uuid
+  status                String   @default("PENDING")
+  fulfillmentStatus     String   @default("UNFULFILLED") @map("fulfillment_status")
+  trackingCode          String?  @map("tracking_code")
+  preferenceId          String?  @unique @map("preference_id")
+  checkoutUrl           String?  @map("checkout_url")
+  lastPaymentCheckAt    DateTime? @map("last_payment_check_at") @db.Timestamptz(6)
+  stockReserved         Boolean  @default(true) @map("stock_reserved")
+  paidCents             Int      @default(0) @map("paid_cents")
+  refundedCents         Int      @default(0) @map("refunded_cents")
+  earnedCommissionCents Int      @default(0) @map("earned_commission_cents")
+  expiresAt             DateTime @default(dbgenerated("now() + interval '30 minutes'")) @map("expires_at") @db.Timestamptz(6)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  partner               Partner  @relation(fields: [partnerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product               PartnerProduct @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments              PartnerPayment[]
+
+  @@index([partnerId, createdAt(sort: Desc)], map: "partner_orders_partner_idx")
+  @@index([status, expiresAt], map: "partner_orders_pending_idx")
+  @@map("partner_orders")
+  @@schema("public")
+}
+
+model PartnerPayment {
+  providerPaymentId String   @id @map("provider_payment_id")
+  orderId           String   @map("order_id") @db.Uuid
+  status            String
+  amountCents       Int      @map("amount_cents")
+  refundedCents     Int      @map("refunded_cents")
+  sourceUpdatedAt   DateTime @map("source_updated_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  order             PartnerOrder @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([orderId], map: "partner_payments_order_idx")
+  @@map("partner_payments")
+  @@schema("public")
+}
+
+model PartnerOAuthState {
+  stateHash String   @id @map("state_hash")
+  partnerId String   @map("partner_id") @db.Uuid
+  verifier  String
+  expiresAt DateTime @default(dbgenerated("now() + interval '10 minutes'")) @map("expires_at") @db.Timestamptz(6)
+  partner   Partner  @relation(fields: [partnerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("partner_oauth_states")
+  @@schema("public")
+}
+
+model PartnerRateLimit {
+  key      String   @id
+  attempts Int      @default(1)
+  resetAt  DateTime @default(dbgenerated("now() + interval '15 minutes'")) @map("reset_at") @db.Timestamptz(6)
+
+  @@map("partner_rate_limits")
+  @@schema("public")
+}
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")

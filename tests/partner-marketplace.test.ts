@@ -1,0 +1,152 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createHmac } from 'node:crypto';
+import { NextRequest } from 'next/server';
+import { commissionCents, moneyToCents, partnerProductSchema, PartnerOrder, requirePartnerPayments } from '../lib/partner';
+import { assertPartnerOrigin, createPartnerSession, readPartnerJson, verifyPartnerSession } from '../lib/partnerAuth';
+import { decryptPartnerTokens, encryptPartnerTokens, partnerPreference, paymentSchema, validatePartnerPayment, verifyMercadoPagoSignature } from '../services/partnerPayments';
+import { POST as checkout } from '../app/api/checkout/parceiros/route';
+import { POST as sellerAction } from '../app/api/parceiros/painel/route';
+import { PATCH as moderate } from '../app/api/admin/parceiros/route';
+import automationWorker from '../cloudflare/automation-worker.js';
+
+const order: PartnerOrder = {
+  id: 'adee6d0f-1ea7-4a46-822d-8be8cb663d58', product_id: '7190bc02-8230-4bdf-af68-e954ed313503',
+  partner_id: '58a9eb87-3556-44e1-9791-5a7196295c29', product_name: 'Produto próprio para teste',
+  total_cents: 19990, commission_bps: 1000, commission_cents: 1999, buyer: {
+    name: 'Cliente Teste', email: 'cliente@example.com', phone: '11999999999', address: 'Rua de Teste, 123',
+    postal_code: '01001000', city: 'São Paulo', state: 'SP',
+  }, status: 'PENDING', fulfillment_status: 'UNFULFILLED', tracking_code: null, preference_id: null, checkout_url: null,
+  paid_cents: 0, refunded_cents: 0, earned_commission_cents: 0,
+  receipt_token: '978ba0d0-908a-4ad0-859b-2e6d03a5461f', created_at: '2026-11-24T15:00:00Z', expires_at: '2026-11-24T15:30:00Z',
+};
+
+test('calculates fees and BRL amounts using integer cents without accepting invalid money', () => {
+  assert.equal(commissionCents(19990, 1000), 1999);
+  assert.equal(commissionCents(1005, 1000), 101);
+  assert.equal(moneyToCents('19.99'), 1999);
+  assert.equal(moneyToCents(0.1), 10);
+  for (const invalid of [-1, NaN, Infinity, '0.001', '1e10', '1,90', ' 10']) assert.throws(() => moneyToCents(invalid));
+  assert.throws(() => commissionCents(100, 10000));
+});
+
+test('validates seller publication data and does not accept a seller-selected approval status', () => {
+  const input = {
+    name: 'Produto de teste', description: 'Descrição completa e verdadeira do produto enviado para análise.',
+    image_url: 'https://example.com/image.jpg', price_cents: 19990, stock: 3, delivery_days: 10,
+    return_policy: 'Atendimento e devoluções conforme a legislação aplicável.', status: 'ACTIVE', partner_id: order.partner_id,
+  };
+  const parsed = partnerProductSchema.parse(input);
+  assert.equal('status' in parsed, false);
+  assert.equal('partner_id' in parsed, false);
+  assert.equal(partnerProductSchema.safeParse({ ...input, image_url: 'javascript:alert(1)' }).success, false);
+  assert.equal(partnerProductSchema.safeParse({ ...input, price_cents: 99.9 }).success, false);
+});
+
+test('partner sessions are scoped, signed, Unicode-safe and reject forgery and expired tokens', async (t) => {
+  const original = process.env.NEXTAUTH_SECRET;
+  process.env.NEXTAUTH_SECRET = 'test-secret-with-at-least-thirty-two-characters';
+  t.after(() => { if (original === undefined) delete process.env.NEXTAUTH_SECRET; else process.env.NEXTAUTH_SECRET = original; });
+  const token = await createPartnerSession(order.partner_id);
+  assert.equal(await verifyPartnerSession(token), order.partner_id);
+  assert.equal(await verifyPartnerSession(token + '.extra'), null);
+  assert.equal(await verifyPartnerSession('malformed'), null);
+  const [payload, signature] = token.split('.');
+  assert.equal(await verifyPartnerSession(`${payload.slice(0, -2)}AA.${signature}`), null);
+  const expired = Buffer.from(JSON.stringify({ id: order.partner_id, scope: 'partner', exp: 1 })).toString('base64url');
+  const hmac = createHmac('sha256', `partner:${process.env.NEXTAUTH_SECRET}`).update(expired).digest('base64url');
+  assert.equal(await verifyPartnerSession(`${expired}.${hmac}`), null);
+});
+
+test('rejects cross-origin mutations and oversized payloads before processing', async () => {
+  assert.doesNotThrow(() => assertPartnerOrigin(new Request('http://localhost:3100/api/parceiros/auth', {
+    headers: { host: '127.0.0.1:3100', origin: 'http://127.0.0.1:3100' },
+  })));
+  assert.throws(() => assertPartnerOrigin(new Request('https://example.com/api/parceiros/auth', { headers: { origin: 'https://attacker.example' } })));
+  const response = await sellerAction(new NextRequest('https://example.com/api/parceiros/painel', {
+    method: 'POST', headers: { origin: 'https://attacker.example' }, body: '{}',
+  }));
+  assert.equal(response.status, 403);
+  await assert.rejects(readPartnerJson(new Request('https://example.com', { method: 'POST', body: 'x'.repeat(20001) })), /muito grande/);
+});
+
+test('seller writes and moderation require their separate authenticated sessions', async () => {
+  for (const handler of [sellerAction, moderate]) {
+    const result = await handler(new NextRequest('https://example.com/api/test', {
+      method: 'POST', headers: { origin: 'https://example.com', 'Content-Type': 'application/json' }, body: '{}',
+    }));
+    assert.equal(result.status, 401);
+  }
+});
+
+test('frequent payment reconciliation never invokes social publishing workflows', async (t) => {
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async (input) => { urls.push(String(input)); return Response.json({ reconciled: 0 }); };
+  await automationWorker.scheduled({ cron: '*/15 * * * *' }, { APP_BASE_URL: 'https://example.com', AUTOMATION_API_SECRET: 'test-secret' });
+  assert.deepEqual(urls, ['https://example.com/api/admin/automation/partner-orders']);
+});
+
+test('validates signed payment notifications, encrypted tokens and authoritative split data', async (t) => {
+  const keys = ['MERCADOPAGO_CLIENT_ID','MERCADOPAGO_CLIENT_SECRET','MERCADOPAGO_WEBHOOK_SECRET','MERCADOPAGO_MODE',
+    'PARTNER_TOKEN_ENCRYPTION_KEY','PARTNER_COMMISSION_BPS','PARTNER_PAYMENTS_ENABLED'] as const;
+  const previous = keys.map((key) => process.env[key]);
+  process.env.MERCADOPAGO_CLIENT_ID = '123';
+  process.env.MERCADOPAGO_CLIENT_SECRET = 'client-test-secret';
+  process.env.MERCADOPAGO_WEBHOOK_SECRET = 'webhook-test-secret';
+  process.env.MERCADOPAGO_MODE = 'sandbox';
+  process.env.PARTNER_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
+  process.env.PARTNER_COMMISSION_BPS = '1000';
+  process.env.PARTNER_PAYMENTS_ENABLED = 'false';
+  t.after(() => keys.forEach((key, index) => {
+    if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
+  }));
+
+  await t.test('new checkouts fail closed while disabled', async () => {
+    assert.throws(requirePartnerPayments, /não estão habilitados/);
+    const result = await checkout(new NextRequest('https://example.com/api/checkout/parceiros', {
+      method: 'POST', headers: { origin: 'https://example.com' }, body: '{}',
+    }));
+    assert.equal(result.status, 503);
+  });
+  await t.test('verifies the provider manifest instead of trusting the body or a browser redirect', async () => {
+    const manifest = 'id:123456;request-id:request-123;ts:1704908010;';
+    const signature = createHmac('sha256', 'webhook-test-secret').update(manifest).digest('hex');
+    const request = new Request('https://example.com/api/webhooks/mercadopago', { headers: {
+      'x-request-id': 'request-123', 'x-signature': `ts=1704908010,v1=${signature}`,
+    } });
+    assert.equal(await verifyMercadoPagoSignature(request, '123456'), true);
+    assert.equal(await verifyMercadoPagoSignature(request, '654321'), false);
+    assert.equal(await verifyMercadoPagoSignature(new Request(request.url), '123456'), false);
+  });
+  await t.test('encrypts tokens with authentication and never stores plaintext credentials', async () => {
+    const tokens = { access_token: 'seller-access', refresh_token: 'seller-refresh' };
+    const encrypted = await encryptPartnerTokens(tokens);
+    assert.equal(encrypted.includes(tokens.access_token), false);
+    assert.deepEqual(await decryptPartnerTokens(encrypted), tokens);
+    const [iv, payload] = encrypted.split('.');
+    const modified = (payload.startsWith('A') ? 'B' : 'A') + payload.slice(1);
+    await assert.rejects(decryptPartnerTokens(`${iv}.${modified}`));
+  });
+  await t.test('confirms fees, seller, environment and amounts using the canonical provider payment', () => {
+    const payment = paymentSchema.parse({
+      id: 123456, external_reference: order.id, collector_id: 987, application_id: 123, currency_id: 'BRL', live_mode: false, status: 'approved',
+      transaction_amount: 199.9, transaction_amount_refunded: 0, date_last_updated: '2026-11-24T15:05:00Z',
+      fee_details: [{ type: 'application_fee', amount: 19.99 }],
+    });
+    assert.deepEqual(validatePartnerPayment(payment, order, '987'), { refunded: 0 });
+    assert.throws(() => validatePartnerPayment({ ...payment, collector_id: '999' }, order, '987'), /não corresponde/);
+    assert.throws(() => validatePartnerPayment({ ...payment, application_id: '999' }, order, '987'), /não corresponde/);
+    assert.throws(() => validatePartnerPayment({ ...payment, transaction_amount: 199.89 }, order, '987'), /não corresponde/);
+    assert.throws(() => validatePartnerPayment({ ...payment, live_mode: true }, order, '987'), /não corresponde/);
+    assert.throws(() => validatePartnerPayment({ ...payment, fee_details: [] }, order, '987'), /Comissão não confirmada/);
+    assert.throws(() => validatePartnerPayment({ ...payment, status: 'refunded' }, order, '987'), /Estorno total/);
+    assert.deepEqual(validatePartnerPayment({ ...payment, status: 'refunded', transaction_amount_refunded: 199.9 }, order, '987'), { refunded: 19990 });
+    const preference = partnerPreference(order);
+    assert.equal(preference.items[0].unit_price, 199.9);
+    assert.equal(preference.marketplace_fee, 19.99);
+    assert.equal(preference.external_reference, order.id);
+    assert.match(preference.back_urls.success, /token=/);
+  });
+});
