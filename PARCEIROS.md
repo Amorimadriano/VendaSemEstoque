@@ -77,6 +77,9 @@ valores. O diagnóstico compara a leitura do aplicativo com os bindings do
 Cloudflare. Cadastre os secrets no projeto **Pages `venda-sem-estoque`**, no
 ambiente **Production**; variáveis locais, do Worker de automação ou de Preview
 não configuram a URL pública de produção. Reimplante depois de salvar.
+O job **Check Cloudflare configuration** do workflow de implantação também
+lista somente nomes e tipos das variáveis de Production/Preview, sem valores,
+para comparar a configuração do projeto com os bindings recebidos pelo site.
 
 Defina os valores no ambiente local e nos secrets/variáveis do Cloudflare Pages:
 
