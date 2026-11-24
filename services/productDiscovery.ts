@@ -10,7 +10,15 @@ const MIN_REVIEWS = Number(process.env.PRODUCT_MIN_REVIEWS || 20);
 const DEFAULT_COMMISSION = 10;
 const MIN_PRICE = Number(process.env.PRODUCT_MIN_PRICE || 20);
 const MAX_PRICE = Number(process.env.PRODUCT_MAX_PRICE || 15000);
-const MARKETPLACES = (process.env.MARKETPLACES_TO_SYNC || 'amazon,aliexpress,shopee').split(',').map((marketplace) => marketplace.trim()).filter(Boolean);
+export const PRODUCT_SYNC_MARKETPLACES = ['aliexpress', 'shopee'] as const;
+
+export function getProductSyncMarketplaces(marketplaces = (process.env.MARKETPLACES_TO_SYNC || PRODUCT_SYNC_MARKETPLACES.join(',')).split(',')) {
+  const selected = [...new Set(marketplaces.map((marketplace) => marketplace.trim().toLowerCase()).filter(Boolean))];
+  const unsupported = selected.filter((slug) => slug !== 'amazon' && !PRODUCT_SYNC_MARKETPLACES.some((supported) => supported === slug));
+  if (unsupported.length) throw new Error(`Marketplaces não suportados na sincronização: ${unsupported.join(', ')}`);
+  if (selected.includes('amazon')) console.warn('[ProductDiscovery] Amazon excluída: sincronização desativada.');
+  return selected.filter((slug) => slug !== 'amazon');
+}
 
 function toSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
@@ -134,7 +142,10 @@ function calculateRanking(product: ExternalProduct, commissionPercentage: number
   return Math.round((sales * 0.55 + discount * 0.25 + margin * 0.2) * 100) / 100;
 }
 
-async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) {
+export async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) {
+  if (!PRODUCT_SYNC_MARKETPLACES.some((slug) => slug === marketplaceSlug)) {
+    throw new Error(`Marketplace desativado para importação: ${marketplaceSlug}`);
+  }
   const supabase = getSupabase();
   const now = new Date().toISOString();
   const marketplaceName = marketplaceSlug === 'aliexpress' ? 'AliExpress' : marketplaceSlug === 'shopee' ? 'Shopee' : 'Amazon';
@@ -153,9 +164,7 @@ async function upsertProduct(product: ExternalProduct, marketplaceSlug: string) 
   }, { onConflict: 'slug' }).select('id').single();
   if (categoryError) throw categoryError;
 
-  const affiliateUrl = marketplaceSlug === 'aliexpress'
-    ? product.affiliateUrl
-    : await getMarketplaceIntegration(marketplaceSlug).createAffiliateLink(product.originalUrl, product.externalProductId);
+  const affiliateUrl = product.affiliateUrl;
   const slug = `${toSlug(product.name)}-${product.externalProductId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`.slice(0, 190);
   const commissionPercentage = product.commissionPercentage || DEFAULT_COMMISSION;
   const ranking = calculateRanking(product, commissionPercentage);
@@ -373,8 +382,9 @@ async function syncMarketplace(marketplaceSlug: string): Promise<{ log: Marketpl
   return { log, discovered };
 }
 
-export async function runProductDiscovery(marketplaces: string[] = MARKETPLACES) {
-  const selectedMarketplaces = [...new Set(marketplaces.map((marketplace) => marketplace.trim().toLowerCase()).filter(Boolean))];
+export async function runProductDiscovery(marketplaces?: string[]) {
+  const selectedMarketplaces = getProductSyncMarketplaces(marketplaces);
+  if (!selectedMarketplaces.length) throw new Error('Nenhum marketplace habilitado para sincronização. Use AliExpress ou Shopee.');
   const discovered = new Map<string, ExternalProduct>();
   const logs: MarketplaceSyncLog[] = [];
 

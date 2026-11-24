@@ -123,7 +123,7 @@ export async function runAutonomousMarketplaceAndPublishWorkflow(): Promise<Auto
   // ETAPA 1: Sincronizar marketplaces comerciais.
   let syncResult: any = { marketplaces: [], discovered: 0, published: 0, logs: [] };
   try {
-    syncResult = await runProductDiscovery(['amazon', 'aliexpress', 'shopee']);
+    syncResult = await runProductDiscovery();
   } catch (err) {
     console.warn('[AutonomousAgent] Sincronização de catálogo gerou aviso:', err);
   }

@@ -41,7 +41,7 @@ jobs:
           PRODUCT_SEARCHES: ${{ vars.PRODUCT_SEARCHES || 'eletronicos,celular,fones,notebook,smart tv,casa' }}
           PRODUCT_MIN_PRICE: ${{ vars.PRODUCT_MIN_PRICE || '20' }}
           PRODUCT_MAX_PRICE: ${{ vars.PRODUCT_MAX_PRICE || '15000' }}
-          MARKETPLACES_TO_SYNC: ${{ vars.MARKETPLACES_TO_SYNC || 'amazon,aliexpress,shopee' }}
+          MARKETPLACES_TO_SYNC: ${{ vars.MARKETPLACES_TO_SYNC || 'aliexpress,shopee' }}
         run: |
           npx tsx -e "
             import { runProductDiscovery } from './services/productDiscovery';

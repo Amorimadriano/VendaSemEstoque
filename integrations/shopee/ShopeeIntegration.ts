@@ -327,29 +327,14 @@ export class ShopeeIntegration implements MarketplaceIntegration {
     };
   }
 
-  private getCuratedShopeeFallback(query?: string, category?: string, limit = 10): ExternalProduct[] {
-    const term = (query || category || '').toLowerCase().trim();
-    if (!term || term === 'ofertas' || term === 'eletronicos') {
-      return REAL_SHOPEE_TOP_PRODUCTS.slice(0, limit);
-    }
-
-    const filtered = REAL_SHOPEE_TOP_PRODUCTS.filter(
-      (item) =>
-        item.name.toLowerCase().includes(term) ||
-        item.categoryName.toLowerCase().includes(term) ||
-        (item.brand && item.brand.toLowerCase().includes(term))
-    );
-
-    return (filtered.length > 0 ? filtered : REAL_SHOPEE_TOP_PRODUCTS).slice(0, limit);
-  }
-
   async getProducts(query?: string, category?: string, limit = 20): Promise<ExternalProduct[]> {
     const safeLimit = Math.min(Math.max(limit, 1), 50);
+    if (!this.hasCredentials()) throw new Error('Credenciais da Shopee ausentes: configure SHOPEE_APP_ID e SHOPEE_SECRET');
 
-    if (this.hasCredentials()) {
+    for (const keyword of query ? [query, undefined] : [undefined]) {
       const gqlQuery = `
         query {
-          productOfferV2(keyword: "${query || 'ofertas'}", page: 1, limit: ${safeLimit}) {
+          productOfferV2(${keyword ? `keyword: ${JSON.stringify(keyword)}, ` : ''}sortType: 2, page: 1, limit: ${safeLimit}) {
             nodes {
               itemId
               productName
@@ -370,38 +355,35 @@ export class ShopeeIntegration implements MarketplaceIntegration {
       const payload = JSON.stringify({ query: gqlQuery });
       const endpoint = 'https://open-api.affiliate.shopee.com.br/graphql';
 
-      try {
-        const headers = await this.generateAuthHeaders(payload);
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: payload,
-        });
-
-        if (response.ok) {
-          const text = await response.text();
-          if (text.startsWith('{') || text.startsWith('[')) {
-            const resJson = JSON.parse(text);
-            const nodes: ShopeeNode[] = resJson?.data?.productOfferV2?.nodes || [];
-            const products: ExternalProduct[] = [];
-
-            for (const node of nodes) {
-              const p = this.convertNode(node, query || category || 'Shopee');
-              if (p) {
-                products.push(p);
-                if (products.length >= safeLimit) break;
-              }
-            }
-
-            if (products.length > 0) return products;
-          }
+      const headers = await this.generateAuthHeaders(payload);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: payload,
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!response.ok) throw new Error(`Shopee productOfferV2 retornou HTTP ${response.status}`);
+      const resJson = await response.json();
+      if (resJson?.errors?.length) {
+        if (keyword && resJson.errors.some((error: { extensions?: { code?: number } }) => error.extensions?.code === 10000)) {
+          console.warn('[Shopee] Busca por palavra-chave indisponível (10000); consultando ofertas atuais por vendas na API oficial.');
+          continue;
         }
-      } catch (err) {
-        console.warn(`[Shopee] API indisponível ou bloqueada, usando catálogo curado de produtos ativos da Shopee:`, err);
+        throw new Error(`Shopee: ${resJson.errors.map((error: { message: string }) => error.message).join('; ')}`);
       }
+      const nodes: ShopeeNode[] = resJson?.data?.productOfferV2?.nodes;
+      if (!Array.isArray(nodes)) throw new Error('Shopee não retornou uma lista de produtos válida');
+      const products: ExternalProduct[] = [];
+      for (const node of nodes) {
+        const product = this.convertNode(node, query || category || 'Shopee');
+        if (product) {
+          products.push(product);
+          if (products.length >= safeLimit) break;
+        }
+      }
+      return products;
     }
-
-    return this.getCuratedShopeeFallback(query, category, safeLimit);
+    throw new Error('Não foi possível consultar ofertas atuais da Shopee');
   }
 
   async getProductByIds(shopId: string, itemId: string, fetcher: typeof fetch = fetch): Promise<ExternalProduct | null> {

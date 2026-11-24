@@ -198,7 +198,6 @@ async function syncMarketplace(slug: string, name: string) {
 async function main() {
   console.log('🚀 INICIANDO SINCRONIZAÇÃO COMPLETA DE PRODUTOS PARA TODOS OS MARKETPLACES');
   const marketplaces = [
-    { slug: 'amazon', name: 'Amazon' },
     { slug: 'aliexpress', name: 'AliExpress' },
     { slug: 'shopee', name: 'Shopee' },
   ];

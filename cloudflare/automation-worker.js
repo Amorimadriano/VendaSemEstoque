@@ -1,7 +1,6 @@
 export default {
   async scheduled(_controller, env) {
     const endpoints = [
-      'amazon-discover',
       'autonomous-workflow',
       'verify-partner-products',
       'publish-instagram',

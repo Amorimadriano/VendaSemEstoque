@@ -224,95 +224,35 @@ export class AliExpressIntegration implements MarketplaceIntegration {
       params.category_ids = category;
     }
 
-    try {
-      params.sign = await this.sign(params);
-
-      const response = await fetch(
-        `https://api-sg.aliexpress.com/sync?${new URLSearchParams(params)}`,
-        {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)',
-          },
-        }
-      );
-
-      if (response.ok) {
-        const text = await response.text();
-        if (text.startsWith('{') || text.startsWith('[')) {
-          const payload = JSON.parse(text);
-          if (!payload?.error_response) {
-            const responseData = payload?.aliexpress_affiliate_product_query_response || payload;
-            let result = responseData?.resp_result?.result || responseData?.result || responseData;
-            if (typeof result === 'string') {
-              try {
-                result = JSON.parse(result);
-              } catch {}
-            }
-
-            const productsPayload = result?.products?.product || result?.products || result?.product || [];
-            const products: AliExpressApiProduct[] = Array.isArray(productsPayload)
-              ? productsPayload
-              : productsPayload
-                ? [productsPayload]
-                : [];
-
-            const converted: ExternalProduct[] = [];
-            for (const item of products) {
-              const product = await this.convertApiProduct(item, query || category || 'AliExpress');
-              if (product) {
-                converted.push(product);
-                if (converted.length >= safeLimit) break;
-              }
-            }
-
-            if (converted.length > 0) return converted;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('[AliExpress] Erro de rede ou bloqueio de API, utilizando catálogo curado:', err);
+    params.sign = await this.sign(params);
+    const response = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(params)}`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) throw new Error(`AliExpress product query retornou HTTP ${response.status}`);
+    const payload = await response.json();
+    if (payload?.error_response) {
+      throw new Error(payload.error_response.msg || 'Erro na busca de produtos AliExpress');
     }
 
-    // Fallback para catálogo curado de produtos reais e ativos do AliExpress
-    const term = (query || '').toLowerCase();
-    const filtered = REAL_ALIEXPRESS_TOP_PRODUCTS.filter(
-      (item) =>
-        !term ||
-        item.title.toLowerCase().includes(term) ||
-        item.category_name.toLowerCase().includes(term) ||
-        item.brand.toLowerCase().includes(term)
-    );
-    const chosen = filtered.length ? filtered : REAL_ALIEXPRESS_TOP_PRODUCTS;
-    const commissionPercentage = Number(process.env.ALIEXPRESS_COMMISSION_PERCENTAGE || 8);
-
-    return Promise.all(chosen.slice(0, safeLimit).map(async (item) => {
-      const discountPercentage = item.original_price
-        ? Math.round(((item.original_price - item.price) / item.original_price) * 100)
-        : undefined;
-
-      return {
-        externalProductId: item.id,
-        name: item.title,
-        description: `${item.title}. Produto original com envio rápido para o Brasil, garantia e suporte direto no AliExpress.`,
-        categoryName: item.category_name,
-        brand: item.brand,
-        imageUrl: item.image,
-        images: [item.image],
-        price: item.price,
-        oldPrice: item.original_price,
-        discountPercentage,
-        rating: item.rating,
-        reviewCount: item.reviews,
-        salesCount: item.sales_count,
-        commissionPercentage,
-        commissionValue: Math.round(((item.price * commissionPercentage) / 100) * 100) / 100,
-        originalUrl: item.permalink,
-        affiliateUrl: await this.createAffiliateLink(item.permalink),
-        isAvailable: true,
-      } satisfies ExternalProduct;
-    }));
+    const responseData = payload?.aliexpress_affiliate_product_query_response || payload;
+    if (responseData?.resp_result?.resp_code && String(responseData.resp_result.resp_code) !== '200') {
+      throw new Error(responseData.resp_result.resp_msg || `AliExpress retornou código ${responseData.resp_result.resp_code}`);
+    }
+    let result = responseData?.resp_result?.result || responseData?.result || responseData;
+    if (typeof result === 'string') result = JSON.parse(result);
+    const productsPayload = result?.products?.product || result?.products || result?.product;
+    if (!productsPayload) throw new Error('AliExpress não retornou uma lista de produtos válida');
+    const products: AliExpressApiProduct[] = Array.isArray(productsPayload) ? productsPayload : [productsPayload];
+    const converted: ExternalProduct[] = [];
+    for (const item of products) {
+      const product = await this.convertApiProduct(item, query || category || 'AliExpress');
+      if (product) {
+        converted.push(product);
+        if (converted.length >= safeLimit) break;
+      }
+    }
+    return converted;
   }
 
   async verifyProduct(externalId: string): Promise<ProductVerificationResult> {
