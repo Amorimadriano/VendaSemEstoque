@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 import { commissionCents, moneyToCents, partnerPaymentEnvironmentStatus, partnerProductImages, partnerProductSchema, PartnerOrder, requirePartnerPayments } from '../lib/partner';
 import { assertPartnerOrigin, createPartnerSession, readPartnerBytes, readPartnerJson, verifyPartnerSession } from '../lib/partnerAuth';
 import { PARTNER_PHOTO_MAX_BYTES, validatePartnerPhoto } from '../lib/partnerPhoto';
-import { decryptPartnerTokens, encryptPartnerTokens, partnerPreference, paymentSchema, validatePartnerPayment, verifyMercadoPagoSignature } from '../services/partnerPayments';
+import { decryptPartnerTokens, encryptPartnerTokens, finishPartnerOAuth, partnerPreference, paymentSchema, validatePartnerPayment, verifyMercadoPagoSignature } from '../services/partnerPayments';
 import { POST as checkout } from '../app/api/checkout/parceiros/route';
 import { POST as sellerAction } from '../app/api/parceiros/painel/route';
 import { POST as uploadPhoto } from '../app/api/parceiros/fotos/route';
@@ -222,6 +222,68 @@ test('frequent payment reconciliation never invokes social publishing workflows'
   globalThis.fetch = async (input) => { urls.push(String(input)); return Response.json({ reconciled: 0 }); };
   await automationWorker.scheduled({ cron: '*/15 * * * *' }, { APP_BASE_URL: 'https://example.com', AUTOMATION_API_SECRET: 'test-secret' });
   assert.deepEqual(urls, ['https://example.com/api/admin/automation/partner-orders']);
+});
+
+test('OAuth exchanges tokens on Cloudflare without the unsupported fetch cache option and propagates provider failures', async (t) => {
+  const environment = {
+    SUPABASE_URL: 'https://oauth-test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'test-service-role',
+    SITE_URL: 'https://example.com', MERCADOPAGO_CLIENT_ID: '123', MERCADOPAGO_CLIENT_SECRET: 'client-test-secret',
+    MERCADOPAGO_WEBHOOK_SECRET: 'webhook-test-secret', MERCADOPAGO_MODE: 'sandbox',
+    PARTNER_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+    PARTNER_COMMISSION_BPS: '1000', PARTNER_PAYMENTS_ENABLED: 'true',
+  };
+  const keys = Object.keys(environment);
+  const previous = keys.map((key) => process.env[key]);
+  const originalFetch = globalThis.fetch;
+  Object.assign(process.env, environment);
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
+    });
+  });
+  let providerStatus = 200;
+  let savedAccounts = 0;
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    if (url.hostname === 'api.mercadopago.com') {
+      if (init && 'cache' in init) throw new TypeError("The 'cache' field on 'RequestInitializerDict' is not implemented.");
+      assert.equal(url.pathname, '/oauth/token');
+      assert.equal(request.method, 'POST');
+      assert.equal(request.headers.get('cache-control'), 'no-store');
+      assert(init?.signal);
+      assert.deepEqual(await request.json(), {
+        client_id: '123', client_secret: 'client-test-secret', grant_type: 'authorization_code',
+        code: 'test-authorization-code', code_verifier: 'test-pkce-verifier',
+        redirect_uri: 'https://example.com/api/parceiros/mercadopago',
+      });
+      return Response.json(providerStatus === 200 ? {
+        access_token: 'seller-access', refresh_token: 'seller-refresh',
+        expires_in: 3600, user_id: 987, live_mode: false,
+      } : { error: 'invalid_grant' }, { status: providerStatus });
+    }
+    if (url.pathname === '/rest/v1/partner_oauth_states' && request.method === 'DELETE') {
+      return Response.json({ verifier: 'test-pkce-verifier' });
+    }
+    if (url.pathname === '/rest/v1/rpc/save_partner_payment_account') {
+      const body = await request.json();
+      assert.equal(body.p_partner_id, order.partner_id);
+      assert.equal(body.p_provider_user_id, '987');
+      assert.equal(body.p_live_mode, false);
+      assert.deepEqual(await decryptPartnerTokens(body.p_encrypted_credentials), {
+        access_token: 'seller-access', refresh_token: 'seller-refresh',
+      });
+      savedAccounts++;
+      return new Response(null, { status: 204 });
+    }
+    throw new Error(`Unexpected OAuth request: ${url.pathname}`);
+  };
+  await finishPartnerOAuth(order.partner_id, 'test-state', 'test-authorization-code');
+  assert.equal(savedAccounts, 1);
+  providerStatus = 400;
+  await assert.rejects(finishPartnerOAuth(order.partner_id, 'test-state', 'test-authorization-code'), /HTTP 400/);
+  assert.equal(savedAccounts, 1);
 });
 
 test('validates signed payment notifications, encrypted tokens and authoritative split data', async (t) => {

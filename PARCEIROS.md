@@ -125,6 +125,8 @@ pedidos antigos.
 
 O checkout usa o token OAuth do vendedor, não um token genérico da plataforma.
 Tokens e refresh tokens são criptografados com AES-GCM e renovados no servidor.
+As chamadas ao Mercado Pago usam o cabeçalho `Cache-Control: no-store`, sem a
+opção `cache` de `fetch`, incompatível com o runtime Cloudflare desta implantação.
 Reconexões devem usar a mesma conta Mercado Pago: trocar o recebedor é bloqueado
 para preservar o acesso a pagamentos e estornos de pedidos anteriores.
 As taxas do Mercado Pago são adicionais à comissão da plataforma e afetam o

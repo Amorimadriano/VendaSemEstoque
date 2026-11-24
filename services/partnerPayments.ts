@@ -43,9 +43,8 @@ export async function decryptPartnerTokens(value: string) {
 async function mpRequest(path: string, accessToken?: string, init: RequestInit = {}): Promise<unknown> {
   const response = await fetch(`https://api.mercadopago.com${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...init.headers },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...init.headers },
     signal: AbortSignal.timeout(15000),
-    cache: 'no-store',
   });
   if (!response.ok) throw new PartnerError(`Mercado Pago indisponível (HTTP ${response.status}). Tente novamente ou reconecte a conta.`, 502);
   return response.json();
