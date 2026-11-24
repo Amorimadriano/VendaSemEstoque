@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Search, Flame, Trophy, Percent, Tag, LayoutDashboard, ShoppingBag, Menu, X, Sparkles } from 'lucide-react';
+import { Search, Flame, Trophy, Percent, Tag, LayoutDashboard, ShoppingBag, Menu, X, Sparkles, Store } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Navbar() {
@@ -37,7 +37,7 @@ export default function Navbar() {
           </Link>
 
           {/* Busca */}
-          <form onSubmit={handleSearch} className="flex-1 max-w-xl relative hidden md:block">
+          <form onSubmit={handleSearch} className="min-w-0 flex-1 max-w-xl relative hidden md:block">
             <input
               type="text"
               placeholder="Buscar produtos, marcas, eletrônicos..."
@@ -51,7 +51,7 @@ export default function Navbar() {
           </form>
 
           {/* Nav Links Desktop */}
-          <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-700">
+          <nav className="hidden xl:flex items-center gap-4 text-sm font-medium text-gray-700">
             <Link href="/produtos" className="hover:text-blue-600 flex items-center gap-1">
               <Tag className="w-4 h-4 text-blue-500" /> Catálogo
             </Link>
@@ -72,6 +72,10 @@ export default function Navbar() {
               <Sparkles className="w-4 h-4 text-indigo-500" /> Links da Bio
             </Link>
 
+            <Link href="/parceiros" className="hover:text-indigo-800 flex items-center gap-1 text-indigo-700 font-bold">
+              <Store className="w-4 h-4" /> Parceiros
+            </Link>
+
             <Link
               href="/admin"
               className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-gray-300 transition-colors"
@@ -83,7 +87,10 @@ export default function Navbar() {
           {/* Menu Mobile Button */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="lg:hidden p-2 text-gray-600 hover:text-blue-600"
+            className="xl:hidden p-2 text-gray-600 hover:text-blue-600"
+            aria-label={isMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-navigation"
           >
             {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -108,7 +115,10 @@ export default function Navbar() {
 
       {/* Menu Mobile Dropdown */}
       {isMenuOpen && (
-        <div className="lg:hidden bg-white border-b border-gray-200 px-4 pt-2 pb-4 space-y-3 font-medium text-gray-700">
+        <div id="mobile-navigation" className="xl:hidden bg-white border-b border-gray-200 px-4 pt-2 pb-4 space-y-3 font-medium text-gray-700">
+          <Link href="/parceiros" onClick={() => setIsMenuOpen(false)} className="block rounded-lg bg-indigo-50 px-3 py-3 text-indigo-700 font-bold">
+            Programa de Parceiros — venda no nosso site
+          </Link>
           <Link href="/produtos" onClick={() => setIsMenuOpen(false)} className="block py-2 border-b border-gray-100">
             Catálogo de Produtos
           </Link>

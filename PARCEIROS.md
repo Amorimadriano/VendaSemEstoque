@@ -2,6 +2,8 @@
 
 ## Escopo
 
+- `/`: chamada em destaque antes das ofertas, com acesso ao programa e à vitrine.
+- Menu principal e menu mobile: acesso ao programa de parceiros.
 - `/parceiros`: página de aquisição, condições e cadastro gratuito.
 - `/parceiros/cadastro` e `/parceiros/entrar`: conta própria de vendedor.
 - `/parceiros/painel`: produtos, aceite de comissão, conexão Mercado Pago,

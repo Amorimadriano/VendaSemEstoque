@@ -2,7 +2,7 @@ import Hero from '@/components/Hero';
 import ProductCard from '@/components/ProductCard';
 import { getProducts, getCategories } from '@/services/productService';
 import Link from 'next/link';
-import { Flame, Trophy, Percent, ArrowRight, Grid, ShieldAlert } from 'lucide-react';
+import { Flame, Trophy, Percent, ArrowRight, Grid, Store } from 'lucide-react';
 
 export const runtime = 'edge';
 export const revalidate = 60; // ISR Revalidation
@@ -17,6 +17,26 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-12">
+      <section aria-labelledby="partner-program-heading" className="rounded-3xl border border-indigo-200 bg-indigo-50 p-6 sm:p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div className="max-w-2xl space-y-3">
+          <p className="flex items-center gap-2 text-sm font-bold text-indigo-700">
+            <Store className="w-5 h-5 shrink-0" aria-hidden="true" />
+            Programa de Parceiros
+          </p>
+          <h2 id="partner-program-heading" className="text-2xl sm:text-3xl font-bold text-gray-900">Tem uma loja? Venda seus produtos no nosso site</h2>
+          <p className="text-gray-700">Cadastre sua loja gratuitamente, envie produtos para aprovação e acompanhe tudo pelo painel do parceiro.</p>
+          <p className="text-sm text-gray-600">Condições e comissão apresentadas antes da ativação das vendas.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row md:flex-col gap-3 shrink-0">
+          <Link href="/parceiros" className="rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white px-6 py-3 text-center font-bold transition-colors">
+            Quero ser parceiro
+          </Link>
+          <Link href="/loja-parceiros" className="rounded-xl border border-indigo-300 bg-white hover:bg-indigo-100 text-indigo-800 px-6 py-3 text-center font-semibold transition-colors">
+            Conhecer lojas parceiras
+          </Link>
+        </div>
+      </section>
+
       {/* Hero */}
       <Hero />
 
