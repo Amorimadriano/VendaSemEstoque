@@ -3,10 +3,12 @@ import test from 'node:test';
 import { createHmac } from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { commissionCents, moneyToCents, partnerProductSchema, PartnerOrder, requirePartnerPayments } from '../lib/partner';
-import { assertPartnerOrigin, createPartnerSession, readPartnerJson, verifyPartnerSession } from '../lib/partnerAuth';
+import { assertPartnerOrigin, createPartnerSession, readPartnerBytes, readPartnerJson, verifyPartnerSession } from '../lib/partnerAuth';
+import { PARTNER_PHOTO_MAX_BYTES, validatePartnerPhoto } from '../lib/partnerPhoto';
 import { decryptPartnerTokens, encryptPartnerTokens, partnerPreference, paymentSchema, validatePartnerPayment, verifyMercadoPagoSignature } from '../services/partnerPayments';
 import { POST as checkout } from '../app/api/checkout/parceiros/route';
 import { POST as sellerAction } from '../app/api/parceiros/painel/route';
+import { POST as uploadPhoto } from '../app/api/parceiros/fotos/route';
 import { PATCH as moderate } from '../app/api/admin/parceiros/route';
 import automationWorker from '../cloudflare/automation-worker.js';
 
@@ -71,12 +73,75 @@ test('rejects cross-origin mutations and oversized payloads before processing', 
 });
 
 test('seller writes and moderation require their separate authenticated sessions', async () => {
-  for (const handler of [sellerAction, moderate]) {
+  for (const handler of [sellerAction, moderate, uploadPhoto]) {
     const result = await handler(new NextRequest('https://example.com/api/test', {
       method: 'POST', headers: { origin: 'https://example.com', 'Content-Type': 'application/json' }, body: '{}',
     }));
     assert.equal(result.status, 401);
   }
+});
+
+test('photo uploads validate content signatures and bound streamed bodies without trusting headers', async () => {
+  const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]);
+  assert.equal(validatePartnerPhoto(png, 'image/png'), 'png');
+  assert.equal(validatePartnerPhoto(Uint8Array.from([255, 216, 255, 224]), 'image/jpeg'), 'jpg');
+  assert.equal(validatePartnerPhoto(new TextEncoder().encode('RIFF0000WEBP'), 'image/webp'), 'webp');
+  assert.throws(() => validatePartnerPhoto(png, 'image/jpeg'), /inválido/);
+  assert.throws(() => validatePartnerPhoto(new TextEncoder().encode('<svg/>'), 'image/svg+xml'), /inválido/);
+  assert.throws(() => validatePartnerPhoto(new Uint8Array(), 'image/png'), /Selecione/);
+  assert.throws(() => validatePartnerPhoto(new Uint8Array(PARTNER_PHOTO_MAX_BYTES + 1), 'image/png'), /5 MB/);
+  const request = new Request('https://example.com', { method: 'POST', body: '12345' });
+  await assert.rejects(readPartnerBytes(request, 4), /muito grande/);
+  await assert.rejects(readPartnerBytes(new Request('https://example.com', {
+    method: 'POST', headers: { 'content-length': '100' }, body: '1',
+  }), 4), /muito grande/);
+});
+
+test('photo storage uses the authenticated owner and never returns success after a storage failure', async (t) => {
+  const keys = ['NEXTAUTH_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
+  const previous = keys.map((key) => process.env[key]);
+  const originalFetch = globalThis.fetch;
+  process.env.NEXTAUTH_SECRET = 'test-secret-with-at-least-thirty-two-characters';
+  process.env.SUPABASE_URL = 'https://storage-test.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role';
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
+    });
+  });
+  let suspended = false;
+  let storageFails = false;
+  const storedPaths: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    if (url.pathname === '/rest/v1/partners') return Response.json({ id: order.partner_id, status: suspended ? 'SUSPENDED' : 'PENDING' });
+    if (url.pathname === '/rest/v1/rpc/partner_rate_limit') return Response.json(true);
+    if (url.pathname.startsWith('/storage/v1/object/partner-products/')) {
+      assert.equal(request.headers.get('content-type'), 'image/png');
+      storedPaths.push(url.pathname);
+      return storageFails ? Response.json({ message: 'Test storage failure' }, { status: 400 })
+        : Response.json({ Key: url.pathname, Id: 'photo-id' });
+    }
+    throw new Error(`Unexpected photo request: ${url.pathname}`);
+  };
+  const token = await createPartnerSession(order.partner_id);
+  const request = () => new NextRequest('https://example.com/api/parceiros/fotos', {
+    method: 'POST', headers: { origin: 'https://example.com', cookie: `partner_session=${token}`, 'content-type': 'image/png' },
+    body: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]),
+  });
+  const response = await uploadPhoto(request());
+  assert.equal(response.status, 201);
+  assert.match((await response.json()).image_url, new RegExp(`/partner-products/${order.partner_id}/[\\da-f-]+\\.png$`));
+  assert.equal(storedPaths.length, 1);
+  suspended = true;
+  assert.equal((await uploadPhoto(request())).status, 403);
+  assert.equal(storedPaths.length, 1);
+  suspended = false; storageFails = true;
+  const failed = await uploadPhoto(request());
+  assert.equal(failed.status, 500);
+  assert.equal('image_url' in await failed.json(), false);
 });
 
 test('frequent payment reconciliation never invokes social publishing workflows', async (t) => {

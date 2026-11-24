@@ -71,18 +71,24 @@ export function partnerApiError(error: unknown) {
   console.error('[PartnerMarketplace]', diagnostic);
   return NextResponse.json({ error: 'Não foi possível concluir a operação. Tente novamente ou contate a administração.' }, { status: 500 });
 }
-export async function readPartnerJson(request: Request): Promise<unknown> {
+export async function readPartnerBytes(request: Request, maxBytes: number) {
+  if (Number(request.headers.get('content-length')) > maxBytes) throw new PartnerError('Solicitação muito grande.', 413);
   const reader = request.body?.getReader();
   if (!reader) throw new PartnerError('Corpo da solicitação obrigatório.');
-  const decoder = new TextDecoder();
   let length = 0;
-  let body = '';
+  const chunks: Uint8Array[] = [];
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     length += value.byteLength;
-    if (length > 20000) { await reader.cancel(); throw new PartnerError('Solicitação muito grande.', 413); }
-    body += decoder.decode(value, { stream: true });
+    if (length > maxBytes) { await reader.cancel(); throw new PartnerError('Solicitação muito grande.', 413); }
+    chunks.push(value);
   }
-  return JSON.parse(body + decoder.decode());
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return bytes;
+}
+export async function readPartnerJson(request: Request): Promise<unknown> {
+  return JSON.parse(new TextDecoder().decode(await readPartnerBytes(request, 20000)));
 }

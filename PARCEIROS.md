@@ -8,6 +8,7 @@
 - `/parceiros/cadastro` e `/parceiros/entrar`: conta própria de vendedor.
 - `/parceiros/painel`: produtos, aceite de comissão, conexão Mercado Pago,
   pedidos confirmados, dados para entrega e rastreamento.
+  Cada produto aceita uma foto enviada do computador/celular ou uma URL HTTPS.
 - `/admin/parceiros`: análise cadastral, curadoria, suspensão e conciliação.
 - `/loja-parceiros`: catálogo exclusivo de produtos aprovados de contas ativas.
 - `/parceiros/compra`: acompanhamento por link privado, sem expor endereço.
@@ -34,6 +35,23 @@ altera nem exclui produtos, usuários ou comissões do catálogo de afiliados.
 O comando `db execute` não registra o histórico de `prisma migrate`.
 Não execute `db push` como substituto desta migração: as funções, permissões
 e restrições SQL fazem parte da implementação.
+
+Para habilitar as fotos enviadas pelo painel, aplique também:
+
+```powershell
+npx prisma db execute --file prisma\migrations\0020_partner_product_photos\migration.sql --schema prisma\schema.prisma
+```
+
+Essa migração configura o bucket público `partner-products` no Supabase Storage.
+Fotos aceitas: JPEG, PNG e WebP, até 5 MB por arquivo. O servidor verifica tamanho,
+tipo e assinatura do arquivo; SVG e outros formatos não são aceitos.
+O upload exige sessão do parceiro, mesma origem e conta não suspensa, com limite
+de 10 envios por 15 minutos por IP/conta. As gravações usam somente a service role,
+com pasta do parceiro e nome aleatório, sem permitir sobrescrever fotos.
+Não é necessário liberar escrita anônima no bucket. Os links das fotos são
+públicos desde o envio; não envie documentos ou imagens particulares.
+Trocar ou cancelar uma foto não remove o arquivo antigo automaticamente;
+considere esse armazenamento na política de retenção e na operação do programa.
 
 Todas as tabelas novas têm RLS. `anon` e `authenticated` não têm acesso direto;
 somente as rotas do servidor, usando service role, acessam esses registros.
