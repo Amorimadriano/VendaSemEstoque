@@ -164,6 +164,8 @@ type AliExpressApiProduct = {
   commission_rate?: string | number;
 
   promotion_link?: string;
+  first_level_category_name?: string;
+  second_level_category_name?: string;
 };
 
 function parseApiNumber(value: string | number | undefined, fallback = 0): number {
@@ -246,7 +248,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     const products: AliExpressApiProduct[] = Array.isArray(productsPayload) ? productsPayload : [productsPayload];
     const converted: ExternalProduct[] = [];
     for (const item of products) {
-      const product = await this.convertApiProduct(item, query || category || 'AliExpress');
+      const product = await this.convertApiProduct(item);
       if (product) {
         converted.push(product);
         if (converted.length >= safeLimit) break;
@@ -485,7 +487,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
     return { total: 0, pending: 0, approved: 0 };
   }
 
-  private async convertApiProduct(item: AliExpressApiProduct, category?: string): Promise<ExternalProduct | null> {
+  private async convertApiProduct(item: AliExpressApiProduct): Promise<ExternalProduct | null> {
     const externalProductId = String(item.product_id || '').trim();
     const name = String(item.product_title || '').trim();
     const originalUrl = String(item.product_detail_url || `https://www.aliexpress.com/item/${externalProductId}.html`).trim();
@@ -514,7 +516,7 @@ export class AliExpressIntegration implements MarketplaceIntegration {
       externalProductId,
       name,
       description: `${name}. Produto original com envio rápido para o Brasil, garantia e suporte direto no AliExpress.`,
-      categoryName: category || 'AliExpress',
+      categoryName: item.second_level_category_name || item.first_level_category_name || 'AliExpress',
       imageUrl,
       images: [imageUrl],
       price,

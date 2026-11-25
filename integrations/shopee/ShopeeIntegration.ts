@@ -375,7 +375,7 @@ export class ShopeeIntegration implements MarketplaceIntegration {
       if (!Array.isArray(nodes)) throw new Error('Shopee não retornou uma lista de produtos válida');
       const products: ExternalProduct[] = [];
       for (const node of nodes) {
-        const product = this.convertNode(node, query || category || 'Shopee');
+        const product = this.convertNode(node);
         if (product) {
           products.push(product);
           if (products.length >= safeLimit) break;

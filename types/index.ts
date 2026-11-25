@@ -2,7 +2,7 @@ export interface ExternalProduct {
   externalProductId: string;
   name: string;
   description: string;
-  categoryName: string;
+  categoryName: string; // Actual provider category, never the search query.
   brand?: string;
   imageUrl: string;
   images: string[];

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatSyncError, getProductSyncMarketplaces, runProductDiscovery, upsertProduct } from '../services/productDiscovery';
+import { formatSyncError, getProductSyncMarketplaces, inferCategory, runProductDiscovery, upsertProduct } from '../services/productDiscovery';
 import { AliExpressIntegration } from '../integrations/aliexpress/AliExpressIntegration';
 import { ShopeeIntegration } from '../integrations/shopee/ShopeeIntegration';
 
@@ -27,6 +27,34 @@ test('excludes Amazon from legacy sync settings and rejects unknown marketplaces
   assert.deepEqual(getProductSyncMarketplaces([' Amazon ', 'ALIEXPRESS', 'shopee', 'shopee']), ['aliexpress', 'shopee']);
   assert.throws(() => getProductSyncMarketplaces(['mock']), /não suportados/);
   await assert.rejects(runProductDiscovery(['amazon']), /Nenhum marketplace habilitado/);
+});
+
+test('classifies product types rather than search keywords, brands or incidental features', () => {
+  const cases = [
+    ['Smart TV LED 43" Tronos FHD Wi-Fi Bluetooth Android 12', 'tv-video'],
+    ['Mini Projetor Portátil 4K Android Wi-Fi Bluetooth', 'tv-video'],
+    ['Pijama Masculino de Cetim com Estampa de Folhas', 'moda-acessorios'],
+    ['Conjunto Masculino de 2 Peças, Camisa e Shorts', 'moda-acessorios'],
+    ['Pacote com 2 Filtros de Combustível para Motores de Popa Mercury', 'automotivo-nautica'],
+    ['Anodo de zinco para motor de popa Yamaha', 'automotivo-nautica'],
+    ['Fones de Ouvido Bluetooth com Câmera e Gravação de Vídeo', 'audio-som'],
+    ['Capa de Celular para iPhone 18 Pro Max', 'acessorios-celular'],
+    ['Carregador USB-C para Notebook e Celular Xiaomi', 'acessorios-celular'],
+    ['Teclado e Mouse sem Fio para Notebook e Celular', 'informatica'],
+    ['Monitor Portátil OLED Touchscreen', 'informatica'],
+    ['Conjunto de 4 jogos americanos de Natal para mesa', 'casa-decoracao'],
+    ['Cascata 400 LEDs para decoração de Natal', 'casa-decoracao'],
+    ['Smartwatch com Chamadas Bluetooth', 'smartwatches'],
+    ['Jogo Grand Theft Auto GTA VI PS5', 'gamer'],
+    ['Comedouro e Bebedouro Automático para Gatos e Cães', 'pets'],
+    ['Produto sem identificação', 'outros'],
+  ];
+  for (const [title, expected] of cases) {
+    assert.equal(inferCategory(title, 'smart tv').slug, expected, title);
+  }
+  assert.equal(inferCategory('Modelo Ultra X', 'TV & Vídeo').slug, 'tv-video');
+  assert.equal(inferCategory('Pijama Masculino de Cetim', 'Smartphones').slug, 'moda-acessorios');
+  assert.equal(inferCategory('Produto sem identificação', '123456').slug, 'outros');
 });
 
 test('imports only live marketplace results, without static fallback products', async (t) => {
@@ -67,6 +95,26 @@ test('imports only live marketplace results, without static fallback products', 
     assert.deepEqual(await shopee.getProducts('fone'), []);
   });
 
+  await t.test('does not label AliExpress search results with the search keyword', async () => {
+    const item = {
+      product_id: '1005001234567890', product_title: 'Pijama Masculino de Cetim',
+      product_detail_url: 'https://www.aliexpress.com/item/1005001234567890.html',
+      product_main_image_url: 'https://example.com/pijama.jpg', target_sale_price: '99.90',
+      promotion_link: 'https://s.click.aliexpress.com/e/test-offer',
+    };
+    globalThis.fetch = async () => Response.json({
+      aliexpress_affiliate_product_query_response: { resp_result: { result: { products: { product: [
+        { ...item, first_level_category_name: 'Moda', second_level_category_name: 'Roupas' },
+        { ...item, product_id: '1005001234567891' },
+      ] } } } },
+    });
+    const products = await ali.getProducts('smart tv');
+    assert.equal(products.length, 2);
+    assert.equal(products[0].categoryName, 'Roupas');
+    assert.equal(products[1].categoryName, 'AliExpress');
+    assert.equal(inferCategory(products[0].name, products[0].categoryName).slug, 'moda-acessorios');
+  });
+
   await t.test('retries Shopee keyword system errors with live best-selling offers', async () => {
     const queries: string[] = [];
     globalThis.fetch = async (_input, init) => {
@@ -85,6 +133,7 @@ test('imports only live marketplace results, without static fallback products', 
     assert.equal(products.length, 1);
     assert.equal(products[0].externalProductId, '123456');
     assert.equal(products[0].price, 99.9);
+    assert.equal(products[0].categoryName, 'Shopee');
     assert.equal(queries.length, 2);
     assert.match(queries[0], /keyword: "fone \\"bluetooth\\""/);
     assert.doesNotMatch(queries[1], /keyword:/);
