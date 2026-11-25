@@ -2,6 +2,7 @@ import { getSupabase } from '@/lib/supabase';
 import { generateContentDraftForProduct } from '@/services/contentDraftGenerator';
 import { InstagramImageError } from '@/lib/instagramImage';
 import {
+  isInstagramVideoReady,
   publishApprovedInstagramContent,
   publishApprovedInstagramStory,
 } from '@/services/instagramPublisher';
@@ -90,7 +91,7 @@ export async function publishPendingChannelBatch(
     publicationAttempts += 1;
 
     try {
-      let { data: draft } = await supabase
+      const { data: latestDraft, error: draftError } = await supabase
         .from('marketing_content')
         .select('id, status, content_type')
         .eq('product_id', product.id)
@@ -98,6 +99,32 @@ export async function publishPendingChannelBatch(
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (draftError) throw draftError;
+      let draft = latestDraft;
+
+      if (channel === 'instagram' && draft?.content_type === 'REEL') {
+        const { data: video, error: videoError } = await supabase
+          .from('marketing_videos')
+          .select('video_url,status')
+          .eq('content_id', draft.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (videoError) throw videoError;
+        if (!isInstagramVideoReady(video)) {
+          const { data: post, error: postError } = await supabase
+            .from('marketing_content')
+            .select('id, status, content_type')
+            .eq('product_id', product.id)
+            .eq('channel', channel)
+            .eq('content_type', 'POST')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (postError) throw postError;
+          draft = post;
+        }
+      }
 
       if (!draft) {
         draft = await generateContentDraftForProduct(product.id, channel, 'POST');
@@ -135,7 +162,9 @@ export async function publishPendingChannelBatch(
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = err instanceof Error ? err.message
+        : typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string'
+          ? err.message : String(err);
       const skipped = channel === 'instagram' && err instanceof InstagramImageError;
       if (skipped) {
         stats.skipped += 1;

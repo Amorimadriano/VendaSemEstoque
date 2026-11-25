@@ -8,6 +8,12 @@ type InstagramPublishingLimit = {
   remaining: number;
 };
 
+export function isInstagramVideoReady(
+  video: { video_url?: string | null; status?: string | null } | null,
+): video is { video_url: string; status: string } {
+  return Boolean(video?.video_url && ['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(String(video.status).toUpperCase()));
+}
+
 export function canPublishWithinInstagramQuota(limit: InstagramPublishingLimit, reserve = 5) {
   return limit.remaining > Math.max(1, reserve);
 }
@@ -120,7 +126,7 @@ export async function publishApprovedInstagramContent(contentId: string) {
       .limit(1)
       .maybeSingle();
     if (videoError) throw videoError;
-    if (!video?.video_url || !['SUCCEEDED', 'FINISHED', 'COMPLETED'].includes(String(video.status).toUpperCase())) {
+    if (!isInstagramVideoReady(video)) {
       throw new Error('Gere o vídeo do Reel e aguarde o render terminar antes de publicar.');
     }
 
